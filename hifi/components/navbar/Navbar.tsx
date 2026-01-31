@@ -1,7 +1,6 @@
 'use client'
 
 const navigation = [
-  { name: 'Product', href: '#' },
   { name: 'How It Works', href: '#how-it-works' },
   { name: 'FAQ', href: '#faq' },
 ]

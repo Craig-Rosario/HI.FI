@@ -6,6 +6,7 @@ import { LineShadowText } from '@/components/ui/line-shadow-text'
 import { TextAnimate } from '@/components/ui/text-animate'
 import Link from 'next/link'
 import { motion } from "motion/react";
+import { useMetaMask } from '@/hooks/use-metamask'
 
 import { useEffect, useState } from "react";
 import { Button } from '@/components/ui/button'
@@ -13,6 +14,15 @@ import { Button } from '@/components/ui/button'
 
 export default function Hero() {
     const [mounted, setMounted] = useState(false);
+    const { 
+        account, 
+        isConnected, 
+        isLoading, 
+        user, 
+        error, 
+        connectWallet, 
+        disconnectWallet 
+    } = useMetaMask();
 
     useEffect(() => {
         setMounted(true);
@@ -82,8 +92,11 @@ export default function Hero() {
                                 <p className="text-4xl font-bold">$2.4M</p>
                             </div>
                             <div className="flex gap-4 mt-5">
-                                <button
-                                    className="
+                                {!isConnected ? (
+                                    <button
+                                        onClick={connectWallet}
+                                        disabled={isLoading}
+                                        className="
     relative group
     bg-black text-white font-extrabold text-sm
     px-7 py-4 rounded-2xl
@@ -95,14 +108,53 @@ export default function Hero() {
     active:translate-x-1.25 active:translate-y-1.25
     transition-all duration-200
     flex items-center gap-3 cursor-pointer
+    disabled:opacity-50 disabled:cursor-not-allowed
   "
-                                >
-                                    <span className="absolute inset-0 rounded-2xl bg-white/10 blur-xl opacity-0 group-hover:opacity-100 transition" />
+                                    >
+                                        <span className="absolute inset-0 rounded-2xl bg-white/10 blur-xl opacity-0 group-hover:opacity-100 transition" />
 
-                                    <span className="relative text-xl">🦊</span>
-                                    <span className="relative tracking-wide">CONNECT WALLET</span>
-                                </button>
+                                        <span className="relative text-xl">
+                                            {isLoading ? '⏳' : '🦊'}
+                                        </span>
+                                        <span className="relative tracking-wide">
+                                            {isLoading ? 'CONNECTING...' : 'CONNECT WALLET'}
+                                        </span>
+                                    </button>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        <div className="
+    relative group
+    bg-green-900 text-white font-extrabold text-sm
+    px-7 py-4 rounded-2xl
+    border-2 border-green-500
+    overflow-hidden
+    shadow-[0_0_30px_rgba(34,197,94,0.25),6px_6px_0px_#22c55e]
+    flex items-center gap-3
+  ">
+                                            <span className="relative text-xl">✅</span>
+                                            <div className="relative">
+                                                <div className="tracking-wide">CONNECTED</div>
+                                                {user && (
+                                                    <div className="text-xs text-green-300">
+                                                        {user.username} ({user.role})
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={disconnectWallet}
+                                            className="text-xs text-gray-400 hover:text-white transition-colors"
+                                        >
+                                            Disconnect
+                                        </button>
+                                    </div>
+                                )}
 
+                                {error && (
+                                    <div className="absolute top-full mt-2 text-red-400 text-xs max-w-xs">
+                                        {error}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
