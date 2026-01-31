@@ -51,7 +51,7 @@ const Footer = () => {
 
         <div className="pt-8">
           <p className="text-gray-400 text-sm text-center font-bold uppercase tracking-widest">
-            © 2024 HI.FI. All rights reserved.
+            © 2025 HI.FI. All rights reserved.
           </p>
         </div>
 

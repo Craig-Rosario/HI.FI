@@ -1,6 +1,7 @@
 'use client'
 
 import React from "react"
+import { ProtectedRoute, useAuth } from '@/contexts/AuthContext'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -22,17 +23,22 @@ export default function AppLayout({
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { user, logout } = useAuth()
+
+  const handleDisconnect = () => {
+    logout()
+    window.location.href = '/'
+  }
 
   return (
+    <ProtectedRoute>
     <div className="flex h-screen bg-background text-foreground overflow-hidden dark">
-      {/* Sidebar */}
       <div
         className={`fixed md:relative inset-y-0 left-0 z-40 bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out ${
           collapsed ? 'w-16' : 'w-64'
         } ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}`}
       >
         <div className="flex flex-col h-full">
-          {/* Logo */}
           <div className={`py-4 border-b border-sidebar-border flex items-center ${collapsed ? 'justify-center px-2' : 'justify-between px-6'}`}>
             {!collapsed && <h1 className="text-2xl font-bold text-sidebar-foreground">HI.FI</h1>}
             {collapsed && <h1 className="text-2xl font-bold text-sidebar-foreground">H</h1>}            <button
@@ -42,7 +48,6 @@ export default function AppLayout({
               <X size={20} className="text-sidebar-foreground" />
             </button>          </div>
 
-          {/* Navigation */}
           <nav className={`flex-1 py-8 space-y-2 mt-4 ${collapsed ? 'px-2' : 'px-4'}`}>
             {navigation.map((item) => {
               const Icon = item.icon
@@ -66,17 +71,17 @@ export default function AppLayout({
             })}
           </nav>
 
-          {/* Account Section */}
           <div className={`border-t border-sidebar-border space-y-2 ${collapsed ? 'p-2' : 'p-4'}`}>
             {!collapsed ? (
               <>
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-sidebar-border bg-sidebar-accent/5">
                   <span className="w-8 h-8 rounded-full bg-sidebar-primary/30 flex items-center justify-center text-xs font-bold text-sidebar-foreground">
-                    0x
+                    {user?.username?.slice(0, 2) || '0x'}
                   </span>
-                  <span className="text-sm truncate text-sidebar-foreground">0xabc...def</span>
+                  <span className="text-sm truncate text-sidebar-foreground">{user?.username || '0xabc...def'}</span>
                 </div>
                 <Button
+                  onClick={handleDisconnect}
                   variant="outline"
                   className="w-full justify-center gap-2 border-sidebar-border text-sidebar-foreground hover:bg-sidebar-accent/10 bg-transparent"
                 >
@@ -105,7 +110,6 @@ export default function AppLayout({
             )}
           </div>
 
-          {/* Toggle Button */}
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="hidden md:flex absolute -right-3 top-20 w-6 h-6 rounded-full bg-sidebar-primary text-sidebar-primary-foreground items-center justify-center hover:bg-sidebar-primary/80 transition-colors shadow-lg"
@@ -115,7 +119,6 @@ export default function AppLayout({
         </div>
       </div>
 
-      {/* Mobile Backdrop */}
       {mobileOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-30 md:hidden"
@@ -123,9 +126,7 @@ export default function AppLayout({
         />
       )}
 
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top Bar */}
         <header className="h-16 border-b border-sidebar-border bg-sidebar flex items-center justify-between px-6 md:px-8">
           <button
             onClick={() => setMobileOpen(true)}
@@ -142,11 +143,11 @@ export default function AppLayout({
           </div>
         </header>
 
-        {/* Content */}
         <main className="flex-1 overflow-auto">
           {children}
         </main>
       </div>
     </div>
+    </ProtectedRoute>
   )
 }
