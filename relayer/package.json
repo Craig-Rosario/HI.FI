@@ -1,0 +1,19 @@
+{
+  "name": "hifi-relayer",
+  "version": "1.0.0",
+  "description": "HIFI Crosschain Relayer - Arc to Sepolia",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js"
+  },
+  "dependencies": {
+    "ethers": "^6.16.0",
+    "dotenv": "^17.2.3",
+    "axios": "^1.6.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  }
+}

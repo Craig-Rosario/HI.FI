@@ -6,7 +6,12 @@ module.exports = {
   networks: {
     sepolia: {
       url: process.env.SEPOLIA_RPC_URL,
-      accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
+      accounts: [process.env.PRIVATE_KEY],
+    },
+    arc: {
+      url: process.env.ARC_RPC_URL,
+      accounts: [process.env.ARC_PRIVATE_KEY || process.env.PRIVATE_KEY],
+      chainId: 5042002,
     },
   },
 };
