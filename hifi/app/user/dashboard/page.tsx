@@ -220,7 +220,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="w-full bg-gray-800 rounded-full h-2">
                   <div
-                    className="bg-gradient-to-r from-gray-600 via-gray-500 via-gray-400 via-gray-300 to-white h-2 rounded-full"
+                    className="bg-linear-to-r from-gray-600 via-gray-500 to-white h-2 rounded-full"
                     style={{ width: '75%' }}
                   />
                 </div>

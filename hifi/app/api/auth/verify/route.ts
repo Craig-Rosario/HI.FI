@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import User from '@/models/User';
 import { verifySignature } from '@/lib/auth';
+import { getOrCreateCircleWallet } from '@/lib/circle-wallets';
 
 export async function POST(request: NextRequest) {
   try {
@@ -44,8 +45,20 @@ export async function POST(request: NextRequest) {
     user.updatedAt = new Date();
     await user.save();
 
+    // Create or get Circle wallet for the user
+    let circleWalletInfo = null;
+    try {
+      circleWalletInfo = await getOrCreateCircleWallet(user._id.toString());
+      console.log('Circle wallet created/retrieved:', circleWalletInfo);
+    } catch (circleError) {
+      console.error('Failed to create Circle wallet:', circleError);
+      // Continue with authentication even if Circle wallet creation fails
+      // The wallet can be created later
+    }
+
     return NextResponse.json({
       success: true,
+      redirectTo: '/user/dashboard',
       user: {
         _id: user._id,
         walletAddress: user.walletAddress,
@@ -54,6 +67,8 @@ export async function POST(request: NextRequest) {
         isActive: user.isActive,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        circleWalletId: user.circleWalletId,
+        circleWalletAddress: user.circleWalletAddress,
       }
     });
 

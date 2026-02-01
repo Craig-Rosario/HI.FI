@@ -10,6 +10,8 @@ interface User {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  circleWalletId?: string;
+  circleWalletAddress?: string;
 }
 
 interface AuthContextType {

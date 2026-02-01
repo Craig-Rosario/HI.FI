@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LayoutDashboard, Coins, TrendingUp, LogOut, ChevronLeft, ChevronRight, X, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-
+import CircleImg from "@/public/images/circle.png"
 const navigation = [
   { name: 'Dashboard', href: '/user/dashboard', icon: LayoutDashboard },
   { name: 'Pools', href: '/user/pools', icon: Coins },
@@ -136,9 +136,9 @@ export default function AppLayout({
           </button>
           <div className="flex-1" />
           <div className="flex items-center gap-4">
-            <div className="text-right text-sm">
-              <p className="font-semibold">Connected</p>
-              <p className="text-foreground/50">Ethereum Mainnet</p>
+            <div className="flex items-center gap-2 text-right text-sm">
+              <img src={CircleImg.src} alt="Circle" className="w-6 h-6" />
+              <p className="font-semibold">Powered by Circle</p>
             </div>
           </div>
         </header>
