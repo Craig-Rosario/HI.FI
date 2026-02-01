@@ -7,6 +7,8 @@ export interface IUser {
   role: 'verifier' | 'investor' | 'admin';
   nonce: string;
   isActive: boolean;
+  circleWalletId?: string;
+  circleWalletAddress?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -34,6 +36,14 @@ const UserSchema = new mongoose.Schema<IUser>({
   isActive: {
     type: Boolean,
     default: true,
+  },
+  circleWalletId: {
+    type: String,
+    required: false,
+  },
+  circleWalletAddress: {
+    type: String,
+    required: false,
   },
 }, {
   timestamps: true,

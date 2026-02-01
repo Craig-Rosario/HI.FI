@@ -15,6 +15,8 @@ interface User {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  circleWalletId?: string;
+  circleWalletAddress?: string;
 }
 
 interface UseMetaMaskReturn {
@@ -140,11 +142,13 @@ export const useMetaMask = (): UseMetaMaskReturn => {
         throw new Error('Authentication failed');
       }
 
-      const { user: userData } = await verifyResponse.json();
+      const { user: userData, redirectTo } = await verifyResponse.json();
       setUser(userData);
       authLogin(userData);
       
-      router.push('/user/dashboard');
+      // Use the redirect URL from the API response, fallback to dashboard
+      const redirectUrl = redirectTo || '/user/dashboard';
+      router.push(redirectUrl);
 
     } catch (error: any) {
       console.error('Error connecting wallet:', error);
