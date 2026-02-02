@@ -35,12 +35,17 @@ async function main() {
   // Check user balance
   console.log("💰 User Balances:");
   const userUSDC = await usdc.balanceOf(user.address);
-  const userShares = await poolVault.getUserShares(user.address);
-  const userValue = await poolVault.balanceOf(user.address);
+  const userShares = await poolVault.shares(user.address);
   
   console.log("   USDC:        ", hre.ethers.formatUnits(userUSDC, 6), "USDC");
-  console.log("   Pool Shares: ", hre.ethers.formatUnits(userShares, 18));
-  console.log("   Pool Value:  ", hre.ethers.formatUnits(userValue, 6), "USDC");
+  console.log("   Pool Shares: ", hre.ethers.formatUnits(userShares, 6));
+  console.log();
+  
+  // Check relayer role
+  console.log("🔐 Role Verification:");
+  const RELAYER_ROLE = hre.ethers.keccak256(hre.ethers.toUtf8Bytes("RELAYER_ROLE"));
+  const hasRelayerRole = await poolVault.hasRole(RELAYER_ROLE, user.address);
+  console.log("   Relayer has RELAYER_ROLE:", hasRelayerRole ? "✅ YES" : "❌ NO");
   console.log();
 
   // Check if user has USDC to deposit

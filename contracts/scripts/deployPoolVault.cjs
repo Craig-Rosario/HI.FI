@@ -12,7 +12,7 @@ async function main() {
 
   // Arc Testnet configuration
   const ARC_USDC = process.env.ARC_USDC || "0x3600000000000000000000000000000000000000";
-  const THRESHOLD = hre.ethers.parseUnits("1000", 6); // 1000 USDC
+  const THRESHOLD = hre.ethers.parseUnits("10", 6); // 10 USDC (testing)
   const RELAYER = deployer.address; // Deployer is relayer for MVP
 
   console.log("📋 Configuration:");
