@@ -6,13 +6,15 @@ import { ProtectedRoute, useAuth } from '@/contexts/AuthContext'
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LayoutDashboard, Coins, TrendingUp, LogOut, ChevronLeft, ChevronRight, X, Menu } from 'lucide-react'
+import { LayoutDashboard, Coins, History, Shield, Sparkles, LogOut, ChevronLeft, ChevronRight, X, Menu } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import CircleImg from "@/public/images/circle.png"
 const navigation = [
   { name: 'Dashboard', href: '/user/dashboard', icon: LayoutDashboard },
   { name: 'Pools', href: '/user/pools', icon: Coins },
-  { name: 'Transactions', href: '/user/transactions', icon: TrendingUp },
+  { name: 'Transactions', href: '/user/transactions', icon: History },
+  { name: 'Risk Profile', href: '/user/risk-profile', icon: Shield },
+  { name: 'Pool Recommendations', href: '/user/recommendations', icon: Sparkles },
 ]
 
 export default function AppLayout({
