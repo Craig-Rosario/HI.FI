@@ -1,16 +1,43 @@
 /**
- * Mock Pool Data Service
- * Provides sample Uniswap v4 pool data for testing
- * In production, this would fetch from The Graph and RPC
+ * Pool Data Service
+ * Fetches real pool data from Arc testnet blockchain
+ * Falls back to mock data if blockchain fetch fails
  */
 
 import { PoolMetrics, AssetCategory } from '../types/recommendations';
+import { fetchPoolDataWithCache } from '../poolFetcher';
 
 /**
- * Get mock pool data for testing
- * TODO: Replace with actual on-chain data fetching
+ * Fetch pool data from blockchain
+ * Uses real on-chain data from deployed PoolVault contracts on Arc testnet
  */
 export async function fetchPoolData(): Promise<PoolMetrics[]> {
+    try {
+        // Attempt to fetch real pool data from blockchain
+        const pools = await fetchPoolDataWithCache();
+
+        if (pools.length > 0) {
+            console.log(`[PoolData] Fetched ${pools.length} real pools from Arc testnet`);
+            return pools;
+        }
+
+        // If no pools found, return fallback
+        console.warn('[PoolData] No pools found on blockchain, using fallback data');
+        return getFallbackPoolData();
+
+    } catch (error) {
+        console.error('[PoolData] Error fetching pool data from blockchain:', error);
+        console.warn('[PoolData] Falling back to mock data');
+
+        // Return fallback data if blockchain fetch fails
+        return getFallbackPoolData();
+    }
+}
+
+/**
+ * Fallback mock pool data for testing when blockchain is unavailable
+ */
+function getFallbackPoolData(): PoolMetrics[] {
     // Sample pools representing different risk profiles
     return [
         // Ultra-low risk: Stablecoin pair

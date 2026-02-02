@@ -14,15 +14,17 @@ import { calculatePoolRiskScore } from './poolRiskScoring';
 
 /**
  * Calculate acceptable risk band for a user
- * Conservative approach: users accept pools at or below their risk score
+ * Users accept pools at or below their risk tolerance (+ small buffer)
+ * Conservative users accept low-risk pools, aggressive users accept all pools
  */
 export function calculateAcceptableRiskBand(userRiskScore: number): RiskBand {
-    // Allow slightly lower risk pools with small tolerance
-    const tolerance = 5;
+    // Add a buffer of 10 points to help very conservative users see low-risk pools
+    // This ensures users with score 0-10 can still see stablecoin pools (risk ~14)
+    const buffer = 10;
 
     return {
-        min: Math.max(0, userRiskScore - tolerance),
-        max: userRiskScore
+        min: 0, // Always start from minimum risk
+        max: userRiskScore + buffer // Up to user's risk tolerance + buffer
     };
 }
 

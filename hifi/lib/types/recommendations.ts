@@ -98,6 +98,12 @@ export interface PoolMetrics {
     // Metadata
     createdAt: Date;
     lastUpdatedBlock: number;
+
+    // Additional Pool Info (optional)
+    state?: string;
+    threshold?: number;
+    progress?: number;
+    totalShares?: number;
 }
 
 // ============================================================================
