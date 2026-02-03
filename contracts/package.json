@@ -1,12 +1,12 @@
 {
   "name": "contracts",
   "version": "1.0.0",
-  "type": "module",
   "scripts": {
     "compile": "hardhat compile",
     "node": "hardhat node",
     "deploy:local": "hardhat run scripts/deploy.js --network localhost",
-    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia"
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "deploy": "hardhat run scripts/deploy.js"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^4.0.4",
@@ -16,6 +16,9 @@
     "hardhat": "^3.1.5"
   },
   "dependencies": {
+    "@nomicfoundation/hardhat-ignition": "^3.0.7",
+    "@nomicfoundation/hardhat-ignition-ethers": "^3.0.7",
     "@openzeppelin/contracts": "^5.4.0"
-  }
+  },
+  "type": "module"
 }
