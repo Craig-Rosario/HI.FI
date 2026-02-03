@@ -7,8 +7,6 @@
   "scripts": {
     "start": "node index.js",
     "server": "node server.js",
-    "nav-updater": "node nav-updater.js",
-    "deploy-aave": "node deploy-pool-to-aave.js",
     "dev": "nodemon index.js"
   },
   "dependencies": {
