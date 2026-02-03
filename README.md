@@ -10,12 +10,10 @@ HI.FI solves the "Trust Gap" in AI-driven DeFi by separating **advice** from **e
 
 - **🔐 Non-Custodial:** You always control your funds
 - **🤖 AI Advisory:** Smart portfolio recommendations without custody risk
-- **🎯 Personalized Recommendations:** Deterministic risk-based pool matching
 - **🔗 Chain-Agnostic:** Deposit any token from any chain via LI.FI integration
 - **📊 ERC-4626 Vaults:** Standardized, transparent yield-bearing pools
 - **🛡️ Deterministic Execution:** Rule-based smart contracts with zero AI control
 - **🚪 Scheduled Exits:** Controlled withdrawal windows to prevent bank runs
-- **📈 Risk Profiling:** Intelligent matching based on your goals and risk tolerance
 
 ## How It Works
 
@@ -31,29 +29,8 @@ HI.FI solves the "Trust Gap" in AI-driven DeFi by separating **advice** from **e
 ```
 ├── contracts/          # Solidity smart contracts (PoolVault, AaveAdapter)
 ├── hifi/              # Next.js frontend with Circle wallet integration
-│   └── lib/
-│       └── recommendations/  # Deterministic recommendation engine
-├── gateway/           # LI.FI integration for cross-chain deposits
-└── relayer/           # Backend services
+└── gateway/           # LI.FI integration for cross-chain deposits
 ```
-
-## 🎯 New: Recommendation Engine
-
-HI.FI now includes a **deterministic financial recommendation agent** that matches users to suitable liquidity pools based on their risk profile.
-
-### How It Works
-1. **Complete Risk Profile**: Answer questions about age, income, investment goals, and risk tolerance
-2. **Get Personalized Recommendations**: Receive top 10 pool recommendations matched to your profile
-3. **Understand Each Pool**: Detailed risk breakdowns, warnings, and transparent explanations
-4. **Make Informed Decisions**: Review metrics, APY, and considerations before investing
-
-### Key Principles
-- ✅ **Deterministic**: Same inputs → same outputs (no black boxes)
-- ✅ **Transparent**: Every calculation is explainable
-- ✅ **Conservative**: Never recommends pools above your risk tolerance
-- ✅ **Non-Custodial**: Recommendations only—you control execution
-
-📖 See [RECOMMENDATION_AGENT_DESIGN.md](RECOMMENDATION_AGENT_DESIGN.md) for complete documentation.
 
 ## The Golden Rule
 
