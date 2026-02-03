@@ -94,22 +94,6 @@ contract PoolVault is AccessControl {
     }
 
     // =====================
-    // ADMIN WITHDRAWAL (for Aave deployment)
-    // =====================
-
-    function withdrawForDeployment(address recipient, uint256 amount)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        require(state == State.Collecting, "Cannot withdraw after activation");
-        require(nav >= threshold, "Threshold not met");
-        require(amount <= nav, "Amount exceeds NAV");
-        require(recipient != address(0), "Invalid recipient");
-
-        usdc.transfer(recipient, amount);
-    }
-
-    // =====================
     // RELAYER NAV UPDATE
     // =====================
 
@@ -120,13 +104,6 @@ contract PoolVault is AccessControl {
         uint256 oldNAV = nav;
         nav = newNAV;
         emit NAVUpdated(oldNAV, newNAV);
-    }
-
-    function setState(State newState)
-        external
-        onlyRole(DEFAULT_ADMIN_ROLE)
-    {
-        state = newState;
     }
 
     // =====================

@@ -7,10 +7,10 @@ async function main() {
   console.log("=====================================");
   console.log("Depositor:", depositor.address);
   
-  // Use Fresh pool v2 (with withdrawal function)
-  const POOL_VAULT_ADDRESS = "0x84A7329d0e6AC7f088e0b8E99A73E7033F7AfEfB";
+  // Use Fresh pool (no shares yet)
+  const POOL_VAULT_ADDRESS = "0xddC39afa01D12911340975eFe6379FF92E22445f";
   const ARC_USDC = "0x3600000000000000000000000000000000000000";
-  const DEPOSIT_AMOUNT = hre.ethers.parseUnits("10", 6); // 10 USDC (100% of threshold)
+  const DEPOSIT_AMOUNT = hre.ethers.parseUnits("5", 6); // 5 USDC
   
   console.log("PoolVault:", POOL_VAULT_ADDRESS);
   console.log("USDC:", ARC_USDC);

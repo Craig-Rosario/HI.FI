@@ -364,33 +364,18 @@ async function checkPoolThreshold() {
     
     // Threshold reached and not yet deployed
     if (nav >= threshold && state === 0n) {
-      console.log('\n🎉 Pool threshold reached! Ready for Aave deployment');
+      console.log('\n🎉 Pool threshold reached! Deploying to Aave...');
       console.log('━'.repeat(60));
-      console.log('   Pool is 100% funded!');
-      console.log(`   Total: ${ethers.formatUnits(nav, 6)} USDC`);
-      console.log('\n   To deploy to Aave:');
-      console.log('   $ node deploy-pool-to-aave.js');
-      console.log('\n   This will:');
-      console.log('   1. Withdraw USDC from pool on Arc');
-      console.log('   2. Bridge USDC to Sepolia via Circle CCTP');
-      console.log('   3. Deposit into Aave for yield (~3-8% APY)');
-      console.log('   4. Activate pool and start earning');
+      
+      // TODO: Implement automatic deployment
+      console.log('⚠️  Automatic deployment not yet implemented');
+      console.log('   Run: node deploy-to-aave.js');
       console.log('━'.repeat(60) + '\n');
       
       // Stop monitoring once threshold is reached
       if (poolMonitorInterval) {
         clearInterval(poolMonitorInterval);
         poolMonitorInterval = null;
-        console.log('✅ Pool monitoring stopped (threshold reached)\n');
-      }
-    } else if (state === 1n) {
-      console.log('   State: ACTIVE (deployed to Aave) ✅\n');
-      
-      // Stop monitoring if already deployed
-      if (poolMonitorInterval) {
-        clearInterval(poolMonitorInterval);
-        poolMonitorInterval = null;
-        console.log('✅ Pool monitoring stopped (already deployed)\n');
       }
     }
   } catch (error) {
