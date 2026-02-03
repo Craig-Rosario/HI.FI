@@ -39,9 +39,7 @@ contract PoolVault is AccessControl {
         _grantRole(RELAYER_ROLE, relayer);
     }
 
-    // =====================
-    // USER DEPOSIT (Arc-native)
-    // =====================
+    // USER FUNCTIONS
 
     function deposit(uint256 amount) external {
         require(state == State.Collecting, "Pool already active");
@@ -49,7 +47,9 @@ contract PoolVault is AccessControl {
 
         usdc.transferFrom(msg.sender, address(this), amount);
 
-        uint256 mintedShares = _calculateShares(amount);
+        uint256 mintedShares = totalShares == 0
+            ? amount
+            : (amount * totalShares) / nav;
 
         shares[msg.sender] += mintedShares;
         totalShares += mintedShares;
@@ -58,92 +58,46 @@ contract PoolVault is AccessControl {
         emit Deposit(msg.sender, amount, mintedShares);
     }
 
-    // =====================
-    // RELAYER DEPOSIT (Crosschain UX)
-    // =====================
-
-    function depositFor(address user, uint256 amount)
-        external
-        onlyRole(RELAYER_ROLE)
-    {
-        require(state == State.Collecting, "Pool already active");
-        require(user != address(0), "Invalid user");
-        require(amount > 0, "Invalid amount");
-
-        usdc.transferFrom(msg.sender, address(this), amount);
-
-        uint256 mintedShares = _calculateShares(amount);
-
-        shares[user] += mintedShares;
-        totalShares += mintedShares;
-        nav += amount;
-
-        emit Deposit(user, amount, mintedShares);
-    }
-
-    // =====================
-    // POOL ACTIVATION
-    // =====================
-
     function activatePool() external {
         require(state == State.Collecting, "Already active");
         require(nav >= threshold, "Threshold not met");
 
         state = State.Active;
+
         emit DeploymentRequested(nav);
     }
 
-    // =====================
-    // RELAYER NAV UPDATE
-    // =====================
+    // RELAYER FUNCTIONS
 
-    function updateNAV(uint256 newNAV)
-        external
-        onlyRole(RELAYER_ROLE)
-    {
+    function updateNAV(uint256 newNAV) external onlyRole(RELAYER_ROLE) {
         uint256 oldNAV = nav;
         nav = newNAV;
+
         emit NAVUpdated(oldNAV, newNAV);
     }
 
-    // =====================
-    // INTERNAL SHARE LOGIC
-    // =====================
-
-    function _calculateShares(uint256 amount)
-        internal
-        view
-        returns (uint256)
-    {
-        if (totalShares == 0) {
-            return amount;
-        }
-        return (amount * totalShares) / nav;
-    }
-
-    // =====================
-    // VIEW HELPERS (UI)
-    // =====================
+    // VIEW FUNCTIONS (for frontend)
 
     function totalAssets() external view returns (uint256) {
         return nav;
     }
 
-    function convertToAssets(uint256 shareAmount)
-        external
-        view
-        returns (uint256)
-    {
+    function convertToAssets(uint256 shareAmount) external view returns (uint256) {
         if (totalShares == 0) return 0;
         return (shareAmount * nav) / totalShares;
     }
 
-    function balanceOf(address user)
-        external
-        view
-        returns (uint256)
-    {
+    function convertToShares(uint256 assetAmount) external view returns (uint256) {
+        if (totalShares == 0) return assetAmount;
+        return (assetAmount * totalShares) / nav;
+    }
+
+    function balanceOf(address user) external view returns (uint256) {
         if (totalShares == 0) return 0;
         return (shares[user] * nav) / totalShares;
+    }
+
+    function getUserShares(address user) external view returns (uint256) {
+        return shares[user];
     }
 }
