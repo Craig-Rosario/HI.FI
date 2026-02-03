@@ -12,39 +12,19 @@ const usdcAddresses = {
   sepolia: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
   baseSepolia: "0x036CbD53842c5426634e7929541eC2318f3dCF7e",
   avalancheFuji: "0x5425890298aed601595a70ab815c96711a31bc65",
-  arc: "0x3600000000000000000000000000000000000000",
 };
 
 // Sets up a client and contracts for the given chain and account
 function setup(chainName, account) {
-  let chain;
-  let transport;
-  
-  // Handle Arc Testnet (custom chain not in viem/chains)
-  if (chainName === "arc") {
-    chain = {
-      id: 5042002,
-      name: "Arc Testnet",
-      network: "arc-testnet",
-      nativeCurrency: { name: "Arc", symbol: "ARC", decimals: 18 },
-      rpcUrls: {
-        default: { http: [process.env.ARC_RPC_URL || "https://rpc.testnet.arc.network"] },
-        public: { http: [process.env.ARC_RPC_URL || "https://rpc.testnet.arc.network"] },
-      },
-    };
-    transport = http(process.env.ARC_RPC_URL || "https://rpc.testnet.arc.network");
-  } else {
-    chain = chains[chainName];
-    // Use the flashblocks-aware RPC for Base Sepolia, otherwise use the default RPC
-    transport = chainName === "baseSepolia"
-      ? http("https://sepolia-preconf.base.org")
-      : http();
-  }
-  
+  const chain = chains[chainName];
   const client = createPublicClient({
     chain,
     account,
-    transport,
+    // Use the flashblocks-aware RPC for Base Sepolia, otherwise use the default RPC
+    transport:
+      chainName === "baseSepolia"
+        ? http("https://sepolia-preconf.base.org")
+        : http(),
   });
 
   return {

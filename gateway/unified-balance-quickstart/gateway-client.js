@@ -14,7 +14,6 @@ export class GatewayClient {
     avalancheFuji: 1,
     base: 6,
     baseSepolia: 6,
-    arc: 26,
   };
 
   // Human-readable names for the supported blockchains, by domain
@@ -22,7 +21,6 @@ export class GatewayClient {
     0: "Ethereum",
     1: "Avalanche",
     6: "Base",
-    26: "Arc",
   };
 
   // Gets info about supported chains and contracts

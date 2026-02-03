@@ -1,63 +1,49 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
-import { useRouter } from 'next/navigation'
-import { ethers } from 'ethers'
-
-const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
-const POOL_VAULT_ABI = [
-  'function state() view returns (uint8)',
-  'function threshold() view returns (uint256)',
-  'function usdc() view returns (address)',
-]
-
-const USDC_ABI = [
-  'function balanceOf(address) view returns (uint256)',
-]
 
 const pools = [
   {
     id: 1,
-    name: 'Aave USDC Pool (Fresh)',
-    address: '0xddC39afa01D12911340975eFe6379FF92E22445f',
-    usdcOverride: '0x3600000000000000000000000000000000000000', // Arc native USDC system contract
+    name: 'Low Risk Pool',
     risk: 'LOW',
+    status: 'Active',
+    currentAmount: 450,
+    threshold: 1000,
     estimatedYield: '5-8',
-    exitCalendar: 'Daily',
-    waitTime: '~24 hours',
-    minDeposit: 1,
-    description: 'Deploy USDC to Aave V3 on Sepolia for stable yields',
-    chain: 'Arc Testnet',
+    exitCalendar: 'Weekly',
+    waitTime: '~7 days',
+    minDeposit: 1000,
+    description: 'Conservative strategy with stable returns',
   },
   {
     id: 2,
-    name: 'Aave USDC Pool (Old)',
-    address: '0x2Ab5B38Cc67D3B23677d3e3A6C726baf0dBed65c',
-    usdcOverride: '0x3600000000000000000000000000000000000000', // Arc native USDC system contract
-    risk: 'LOW',
-    estimatedYield: '5-8',
-    exitCalendar: 'Daily',
-    waitTime: '~24 hours',
-    minDeposit: 1,
-    description: 'Previous pool with 8 USDC already deposited',
-    chain: 'Arc Testnet',
-  },
-  {
-    id: 3,
-    name: 'High Yield Pool',
-    address: '0x5BF5868E09D9395968F7C2A989679F4a5b415683',
-    usdcOverride: '0x3600000000000000000000000000000000000000', // Arc native USDC system contract
+    name: 'Medium Risk Pool',
     risk: 'MEDIUM',
+    status: 'Active',
+    currentAmount: 350,
+    threshold: 700,
     estimatedYield: '12-18',
     exitCalendar: 'Daily',
     waitTime: '~24 hours',
-    minDeposit: 1,
-    description: 'Higher threshold pool (1000 USDC) for larger deposits',
-    chain: 'Arc Testnet',
+    minDeposit: 700,
+    description: 'Balanced approach for moderate returns',
+  },
+  {
+    id: 3,
+    name: 'High Risk Pool',
+    risk: 'HIGH',
+    status: 'Active',
+    currentAmount: 230,
+    threshold: 500,
+    estimatedYield: '25-35',
+    exitCalendar: 'Hours',
+    waitTime: '~2-4 hours',
+    minDeposit: 500,
+    description: 'Aggressive strategy for maximum returns',
   },
 ]
 
@@ -68,89 +54,10 @@ const chains = [
 ]
 
 export default function PoolsPage() {
-  const router = useRouter()
   const [selectedPool, setSelectedPool] = useState<number | null>(null)
   const [selectedChain, setSelectedChain] = useState('ethereum')
   const [investAmount, setInvestAmount] = useState('')
   const [showChainDropdown, setShowChainDropdown] = useState(false)
-  const [poolsData, setPoolsData] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetchPoolsData()
-  }, [])
-
-  const fetchPoolsData = async () => {
-    try {
-      const provider = new ethers.JsonRpcProvider('https://rpc.testnet.arc.network')
-      
-      // Fetch pools sequentially with delay to avoid rate limiting
-      const poolsWithData = []
-      for (let i = 0; i < pools.length; i++) {
-        const pool = pools[i]
-        try {
-          const contract = new ethers.Contract(pool.address, POOL_VAULT_ABI, provider)
-          
-          // Fetch contract data with retry logic
-          let state, threshold, usdcAddr
-          try {
-            [state, threshold, usdcAddr] = await Promise.all([
-              contract.state(),
-              contract.threshold(),
-              contract.usdc(),
-            ])
-          } catch (err) {
-            console.error(`Error fetching contract data for ${pool.name}:`, err)
-            throw err
-          }
-
-          // Use override USDC address if contract returns invalid address
-          const isValidUSDC = usdcAddr && usdcAddr !== ethers.ZeroAddress && 
-                             usdcAddr !== '0x3600000000000000000000000000000000000000'
-          const actualUSDCAddr = isValidUSDC ? usdcAddr : (pool as any).usdcOverride
-          
-          if (!actualUSDCAddr) {
-            console.error(`No valid USDC address for ${pool.name}`)
-            throw new Error('No valid USDC address')
-          }
-            
-          // Get actual USDC balance with delay
-          await delay(300) // Add delay between calls
-          // Use addresses directly - ethers will handle normalization
-          const usdc = new ethers.Contract(actualUSDCAddr, USDC_ABI, provider)
-          const balance = await usdc.balanceOf(pool.address)
-
-          poolsWithData.push({
-            ...pool,
-            status: state === 0n ? 'Collecting' : state === 1n ? 'Deployed' : 'Withdrawing',
-            currentAmount: parseFloat(ethers.formatUnits(balance, 6)),
-            threshold: parseFloat(ethers.formatUnits(threshold, 6)),
-            nav: parseFloat(ethers.formatUnits(balance, 6)),
-          })
-          
-          // Add delay between pools
-          if (i < pools.length - 1) {
-            await delay(500)
-          }
-        } catch (error) {
-          console.error(`Error fetching data for pool ${pool.name}:`, error)
-          poolsWithData.push({
-            ...pool,
-            status: 'Error',
-            currentAmount: 0,
-            threshold: 0,
-            nav: 0,
-          })
-        }
-      }
-
-      setPoolsData(poolsWithData)
-      setLoading(false)
-    } catch (error) {
-      console.error('Error fetching pools:', error)
-      setLoading(false)
-    }
-  }
   const getRiskColor = (risk: string) => {
     switch (risk) {
       case 'LOW':
@@ -165,14 +72,13 @@ export default function PoolsPage() {
   }
 
   const getStatusColor = (status: string) => {
-    if (status === 'Collecting') return 'text-blue-400 bg-blue-500/10 border-blue-500/20'
-    if (status === 'Deployed') return 'text-green-400 bg-green-500/10 border-green-500/20'
-    if (status === 'Withdrawing') return 'text-orange-400 bg-orange-500/10 border-orange-500/20'
-    return 'text-gray-400 bg-gray-800 border-gray-700'
+    return status === 'Active'
+      ? 'text-green-400 bg-green-500/10 border-green-500/20'
+      : 'text-orange-400 bg-orange-500/10 border-orange-500/20'
   }
 
   const formatUSDC = (amount: number) => {
-    return (amount || 0).toLocaleString('en-US')
+    return amount.toLocaleString('en-US')
   }
 
   const getSelectedChain = () => chains.find(chain => chain.id === selectedChain)
@@ -189,7 +95,7 @@ export default function PoolsPage() {
     setShowChainDropdown(false)
   }
 
-  const getCurrentPool = () => poolsData.find(pool => pool.id === selectedPool)
+  const getCurrentPool = () => pools.find(pool => pool.id === selectedPool)
 
   return (
     <div className="p-6 md:p-8 space-y-8">
@@ -208,29 +114,17 @@ export default function PoolsPage() {
           </p>
         </div>
 
-        <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
-          <h3 className="font-semibold text-purple-400 mb-2">💎 Arc Native USDC</h3>
+        <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4">
+          <h3 className="font-semibold text-orange-400 mb-2">⚠️ Risk Disclaimer</h3>
           <p className="text-sm text-foreground/70">
-            Pools use Arc's native USDC system contract (0x3600...0000) for high-performance transactions.
+            All investments carry risk. Higher risk pools offer potential for greater returns but also greater potential losses. 
+            Please invest only what you can afford to lose and consider your risk tolerance carefully.
           </p>
         </div>
       </div>
 
-      <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4">
-        <h3 className="font-semibold text-orange-400 mb-2">⚠️ Risk Disclaimer</h3>
-        <p className="text-sm text-foreground/70">
-          All investments carry risk. Higher risk pools offer potential for greater returns but also greater potential losses. 
-          Please invest only what you can afford to lose and consider your risk tolerance carefully.
-        </p>
-      </div>
-
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-        </div>
-      ) : (
-        <div className="grid md:grid-cols-3 gap-6">
-          {poolsData.map((pool) => (
+      <div className="grid md:grid-cols-3 gap-6">
+        {pools.map((pool) => (
           <div
             key={pool.id}
             className="bg-card border border-gray-800 rounded-lg p-6 hover:border-blue-500/50 transition"
@@ -251,16 +145,16 @@ export default function PoolsPage() {
             <div className="mb-4">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-gray-400">Pool Progress</span>
-                <span className="font-semibold">{formatUSDC(pool.currentAmount || 0)}/{formatUSDC(pool.threshold || 0)} USDC</span>
+                <span className="font-semibold">{formatUSDC(pool.currentAmount)}/{formatUSDC(pool.threshold)} USDC</span>
               </div>
               <div className="w-full bg-gray-800 rounded-full h-3">
                 <div
                   className="bg-linear-to-r from-blue-600 to-blue-400 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${((pool.currentAmount || 0) / (pool.threshold || 1)) * 100}%` }}
+                  style={{ width: `${(pool.currentAmount / pool.threshold) * 100}%` }}
                 />
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                {Math.round(((pool.currentAmount || 0) / (pool.threshold || 1)) * 100)}% funded
+                {Math.round((pool.currentAmount / pool.threshold) * 100)}% funded
               </p>
             </div>
 
@@ -286,14 +180,13 @@ export default function PoolsPage() {
             <Button 
               size="sm" 
               className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => router.push(`/user/pools/deposit?pool=${pool.address}`)}
+              onClick={() => openModal(pool.id)}
             >
-              Deposit to Pool
+              Join Pool
             </Button>
           </div>
         ))}
-        </div>
-      )}
+      </div>
 
       {selectedPool && (
         <>
