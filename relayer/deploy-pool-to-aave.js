@@ -85,20 +85,30 @@ async function deployPoolToAave() {
   console.log('✅ Pool ready for deployment!\n');
   console.log('═'.repeat(60) + '\n');
   
-  // ========== STEP 2: Withdraw from Pool ==========
-  console.log('💸 STEP 2: Withdrawing USDC from Pool on Arc\n');
+  // ========== STEP 2: Withdraw from Pool (or check if already withdrawn) ==========
+  console.log('💸 STEP 2: Preparing USDC for Bridge\n');
   
-  const withdrawAmount = nav; // Withdraw full NAV
-  console.log(`   Withdrawing ${ethers.formatUnits(withdrawAmount, 6)} USDC to ${adminWallet.address}...\n`);
-  
-  const withdrawTx = await pool.withdrawForDeployment(adminWallet.address, withdrawAmount);
-  await withdrawTx.wait();
-  console.log(`✅ Withdrawn! TX: ${withdrawTx.hash}\n`);
-  
-  // Verify balance
   const arcUSDC = new ethers.Contract(process.env.ARC_USDC, usdcABI, arcSigner);
-  const arcBalance = await arcUSDC.balanceOf(adminWallet.address);
-  console.log(`   Admin balance on Arc: ${ethers.formatUnits(arcBalance, 6)} USDC\n`);
+  let arcBalance = await arcUSDC.balanceOf(adminWallet.address);
+  
+  console.log(`   Admin balance on Arc: ${ethers.formatUnits(arcBalance, 6)} USDC`);
+  
+  const withdrawAmount = nav;
+  
+  // Check if we already have enough USDC (in case withdrawal already happened)
+  if (arcBalance >= withdrawAmount) {
+    console.log(`✅ Already have ${ethers.formatUnits(withdrawAmount, 6)} USDC - skipping withdrawal\n`);
+  } else {
+    console.log(`   Need to withdraw ${ethers.formatUnits(withdrawAmount, 6)} USDC from pool...\n`);
+    
+    const withdrawTx = await pool.withdrawForDeployment(adminWallet.address, withdrawAmount);
+    await withdrawTx.wait();
+    console.log(`✅ Withdrawn! TX: ${withdrawTx.hash}\n`);
+    
+    // Update balance
+    arcBalance = await arcUSDC.balanceOf(adminWallet.address);
+    console.log(`   Admin balance on Arc: ${ethers.formatUnits(arcBalance, 6)} USDC\n`);
+  }
   console.log('═'.repeat(60) + '\n');
   
   // ========== STEP 3: Bridge Arc → Sepolia ==========

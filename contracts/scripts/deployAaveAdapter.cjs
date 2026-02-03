@@ -9,7 +9,7 @@ async function main() {
   const AaveAdapter = await ethers.getContractFactory("AaveAdapter");
 
   const adapter = await AaveAdapter.deploy(
-    "0x94a9D9AC8a22534E3FaCa9F4e7F2E2cf85d5E4C8", // USDC
+    "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238", // Gateway-compatible USDC
     "0x16dA4541aD1807f4443d92D26044C1147406EB80", // aUSDC
     "0x6Ae43d3271ff6888e7Fc43Fd7321a503ff738951"  // Aave Pool
   );
