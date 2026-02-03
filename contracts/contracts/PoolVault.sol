@@ -2,102 +2,108 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract PoolVault is AccessControl {
-    bytes32 public constant RELAYER_ROLE = keccak256("RELAYER_ROLE");
-
+contract PoolVault is Ownable {
     enum State {
-        Collecting,
-        Active
+        COLLECTING,
+        DEPLOYED,
+        WITHDRAW_WINDOW
     }
 
     IERC20 public immutable usdc;
+
+    uint256 public cap;
+    uint256 public totalShares;
     State public state;
 
-    uint256 public totalShares;
-    uint256 public nav;
-    uint256 public threshold;
+    uint256 public withdrawWindowEnd;
 
     mapping(address => uint256) public shares;
 
-    // EVENTS
-    event Deposit(address indexed user, uint256 amount, uint256 sharesMinted);
-    event DeploymentRequested(uint256 amount);
-    event NAVUpdated(uint256 oldNAV, uint256 newNAV);
+    // ===== EVENTS =====
 
-    constructor(
-        address _usdc,
-        uint256 _threshold,
-        address relayer
-    ) {
+    event Deposited(address indexed user, uint256 amount, uint256 sharesMinted);
+    event PoolDeployed(uint256 totalAssets);
+    event WithdrawWindowOpened(uint256 windowEnd);
+    event Withdrawn(address indexed user, uint256 amount, uint256 sharesBurned);
+
+    // ===== CONSTRUCTOR =====
+
+    constructor(address _usdc, uint256 _cap) Ownable(msg.sender) {
         usdc = IERC20(_usdc);
-        threshold = _threshold;
-        state = State.Collecting;
-
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(RELAYER_ROLE, relayer);
+        cap = _cap;
+        state = State.COLLECTING;
     }
 
-    // USER FUNCTIONS
+    // ===== DEPOSIT =====
 
     function deposit(uint256 amount) external {
-        require(state == State.Collecting, "Pool already active");
-        require(amount > 0, "Invalid amount");
+        require(state == State.COLLECTING, "Not collecting");
+        require(amount > 0, "Zero amount");
+
+        uint256 assetsBefore = totalAssets();
 
         usdc.transferFrom(msg.sender, address(this), amount);
 
         uint256 mintedShares = totalShares == 0
             ? amount
-            : (amount * totalShares) / nav;
+            : (amount * totalShares) / assetsBefore;
 
         shares[msg.sender] += mintedShares;
         totalShares += mintedShares;
-        nav += amount;
 
-        emit Deposit(msg.sender, amount, mintedShares);
+        require(totalAssets() <= cap, "Cap exceeded");
+
+        emit Deposited(msg.sender, amount, mintedShares);
     }
 
-    function activatePool() external {
-        require(state == State.Collecting, "Already active");
-        require(nav >= threshold, "Threshold not met");
+    // ===== DEPLOY (NO STRATEGY YET) =====
 
-        state = State.Active;
+    function deploy() external onlyOwner {
+        require(state == State.COLLECTING, "Already deployed");
+        require(totalAssets() == cap, "Cap not reached");
 
-        emit DeploymentRequested(nav);
+        state = State.DEPLOYED;
+        emit PoolDeployed(cap);
     }
 
-    // RELAYER FUNCTIONS
+    // ===== WITHDRAW WINDOW =====
 
-    function updateNAV(uint256 newNAV) external onlyRole(RELAYER_ROLE) {
-        uint256 oldNAV = nav;
-        nav = newNAV;
+    function openWithdrawWindow(uint256 duration) external onlyOwner {
+        require(state == State.DEPLOYED, "Not deployed");
+        require(duration > 0, "Invalid duration");
 
-        emit NAVUpdated(oldNAV, newNAV);
+        withdrawWindowEnd = block.timestamp + duration;
+        state = State.WITHDRAW_WINDOW;
+
+        emit WithdrawWindowOpened(withdrawWindowEnd);
     }
 
-    // VIEW FUNCTIONS (for frontend)
+    function withdraw(uint256 shareAmount) external {
+        require(state == State.WITHDRAW_WINDOW, "Withdraw closed");
+        require(block.timestamp <= withdrawWindowEnd, "Window expired");
+        require(shareAmount > 0, "Zero shares");
+        require(shares[msg.sender] >= shareAmount, "Insufficient shares");
 
-    function totalAssets() external view returns (uint256) {
-        return nav;
+        uint256 assets = (shareAmount * totalAssets()) / totalShares;
+
+        shares[msg.sender] -= shareAmount;
+        totalShares -= shareAmount;
+
+        usdc.transfer(msg.sender, assets);
+
+        emit Withdrawn(msg.sender, assets, shareAmount);
     }
 
-    function convertToAssets(uint256 shareAmount) external view returns (uint256) {
+    // ===== VIEWS =====
+
+    function totalAssets() public view returns (uint256) {
+        return usdc.balanceOf(address(this));
+    }
+
+    function previewWithdraw(address user) external view returns (uint256) {
         if (totalShares == 0) return 0;
-        return (shareAmount * nav) / totalShares;
-    }
-
-    function convertToShares(uint256 assetAmount) external view returns (uint256) {
-        if (totalShares == 0) return assetAmount;
-        return (assetAmount * totalShares) / nav;
-    }
-
-    function balanceOf(address user) external view returns (uint256) {
-        if (totalShares == 0) return 0;
-        return (shares[user] * nav) / totalShares;
-    }
-
-    function getUserShares(address user) external view returns (uint256) {
-        return shares[user];
+        return (shares[user] * totalAssets()) / totalShares;
     }
 }

@@ -1,51 +1,22 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
+import { IPool } from '@/models/Pool'
 
-const pools = [
-  {
-    id: 1,
-    name: 'Low Risk Pool',
-    risk: 'LOW',
-    status: 'Active',
-    currentAmount: 450,
-    threshold: 1000,
-    estimatedYield: '5-8',
-    exitCalendar: 'Weekly',
-    waitTime: '~7 days',
-    minDeposit: 1000,
-    description: 'Conservative strategy with stable returns',
-  },
-  {
-    id: 2,
-    name: 'Medium Risk Pool',
-    risk: 'MEDIUM',
-    status: 'Active',
-    currentAmount: 350,
-    threshold: 700,
-    estimatedYield: '12-18',
-    exitCalendar: 'Daily',
-    waitTime: '~24 hours',
-    minDeposit: 700,
-    description: 'Balanced approach for moderate returns',
-  },
-  {
-    id: 3,
-    name: 'High Risk Pool',
-    risk: 'HIGH',
-    status: 'Active',
-    currentAmount: 230,
-    threshold: 500,
-    estimatedYield: '25-35',
-    exitCalendar: 'Hours',
-    waitTime: '~2-4 hours',
-    minDeposit: 500,
-    description: 'Aggressive strategy for maximum returns',
-  },
-]
+// Type for the UI pool with additional display properties
+interface UIPool extends Omit<IPool, 'createdAt' | 'updatedAt'> {
+  id: string; // Use _id as id for consistency with existing UI
+  risk: 'LOW' | 'MEDIUM' | 'HIGH';
+  status: 'Active' | 'Inactive';
+  currentAmount: number;
+  threshold: number;
+  estimatedYield: string;
+  exitCalendar: string;
+  waitTimeDisplay: string;
+}
 
 const chains = [
   { id: 'ethereum', name: 'Ethereum', balance: 1250.50, disabled: false, logo: '/images/eth.svg' },
@@ -53,11 +24,69 @@ const chains = [
   { id: 'arbitrum', name: 'Arbitrum', balance: 0, disabled: true, logo: '/images/arbitrum.svg' },
 ]
 
+// Helper function to convert DB pool to UI pool
+function convertPoolToUIPool(dbPool: IPool): UIPool {
+  return {
+    ...dbPool,
+    id: dbPool._id,
+    risk: 'LOW', // All pools are low risk now
+    status: dbPool.state === 'COLLECTING' ? 'Active' : 'Inactive',
+    currentAmount: parseFloat(dbPool.tvl),
+    threshold: parseFloat(dbPool.cap),
+    estimatedYield: dbPool.apy === '0' ? '5-8' : dbPool.apy, // Default estimate if no APY set
+    exitCalendar: 'Weekly', // Default for low risk pool
+    waitTimeDisplay: `~${Math.ceil(dbPool.waitTime / 60)} minutes`,
+  };
+}
+
 export default function PoolsPage() {
-  const [selectedPool, setSelectedPool] = useState<number | null>(null)
+  const [pools, setPools] = useState<UIPool[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [selectedPool, setSelectedPool] = useState<string | null>(null)
   const [selectedChain, setSelectedChain] = useState('ethereum')
   const [investAmount, setInvestAmount] = useState('')
   const [showChainDropdown, setShowChainDropdown] = useState(false)
+
+  // Fetch pools from API
+  useEffect(() => {
+    const fetchPools = async () => {
+      try {
+        const response = await fetch('/api/pools')
+        if (!response.ok) {
+          throw new Error('Failed to fetch pools')
+        }
+        const data = await response.json()
+        if (data.success) {
+          const uiPools = data.data.map(convertPoolToUIPool)
+          setPools(uiPools)
+        } else {
+          throw new Error(data.error || 'Failed to fetch pools')
+        }
+      } catch (err) {
+        console.error('Error fetching pools:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load pools')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchPools()
+  }, [])
+
+  // Cleanup body overflow when component unmounts or modal closes
+  useEffect(() => {
+    return () => {
+      document.body.style.overflow = 'unset'
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedPool) {
+      document.body.style.overflow = 'unset'
+    }
+  }, [selectedPool])
+
   const getRiskColor = (risk: string) => {
     switch (risk) {
       case 'LOW':
@@ -85,17 +114,58 @@ export default function PoolsPage() {
   const protocolFee = investAmount ? parseFloat(investAmount) * 0.005 : 0 // 0.5% fee
   const netInvested = investAmount ? parseFloat(investAmount) - protocolFee : 0
 
-  const openModal = (poolId: number) => {
+  const openModal = (poolId: string) => {
     setSelectedPool(poolId)
     setInvestAmount('')
+    // Prevent body scroll when modal is open
+    document.body.style.overflow = 'hidden'
   }
 
   const closeModal = () => {
     setSelectedPool(null)
     setShowChainDropdown(false)
+    // Restore body scroll when modal is closed
+    document.body.style.overflow = 'unset'
   }
 
   const getCurrentPool = () => pools.find(pool => pool.id === selectedPool)
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="p-6 md:p-8 space-y-8">
+        <div>
+          <h1 className="text-4xl font-bold mb-2">Investment Pools</h1>
+          <p className="text-foreground/70">Loading pools...</p>
+        </div>
+        <div className="grid md:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-card border border-gray-800 rounded-lg p-6 animate-pulse">
+              <div className="h-6 bg-gray-700 rounded mb-4"></div>
+              <div className="h-4 bg-gray-700 rounded mb-2"></div>
+              <div className="h-4 bg-gray-700 rounded mb-4"></div>
+              <div className="h-10 bg-gray-700 rounded"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="p-6 md:p-8 space-y-8">
+        <div>
+          <h1 className="text-4xl font-bold mb-2">Investment Pools</h1>
+          <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4">
+            <h3 className="font-semibold text-red-400 mb-2">⚠️ Error Loading Pools</h3>
+            <p className="text-sm text-foreground/70">{error}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 md:p-8 space-y-8">
@@ -169,7 +239,7 @@ export default function PoolsPage() {
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-400">Wait Time</span>
-                <span className="font-semibold text-orange-400">{pool.waitTime}</span>
+                <span className="font-semibold text-orange-400">{pool.waitTimeDisplay}</span>
               </div>
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-400">Min Deposit</span>
@@ -189,14 +259,26 @@ export default function PoolsPage() {
       </div>
 
       {selectedPool && (
-        <>
+        <div className="fixed inset-0 z-40 overflow-hidden">
+          {/* Backdrop with blur effect that covers everything */}
           <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-md z-40"
+            className="absolute inset-0 bg-black/60 backdrop-blur-md w-full h-full"
             onClick={closeModal}
-            style={{ backdropFilter: 'blur(8px)' }}
+            style={{ 
+              backdropFilter: 'blur(8px)',
+              minHeight: '100vh',
+              minWidth: '100vw',
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0
+            }}
           />
           
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Modal container */}
+          <div className="relative z-50 flex items-center justify-center p-4 h-full overflow-y-auto"
+               style={{ minHeight: '100vh' }}>
             <div className="bg-card border border-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-6 border-b border-gray-800">
                 <div>
@@ -369,7 +451,7 @@ export default function PoolsPage() {
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Estimated withdrawal time</span>
-                      <span className="font-medium">{getCurrentPool()?.waitTime}</span>
+                      <span className="font-medium">{getCurrentPool()?.waitTimeDisplay}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Yield paid in</span>
@@ -422,7 +504,7 @@ export default function PoolsPage() {
               </div>
             </div>
           </div>
-        </>
+        </div>
       )}
 
 

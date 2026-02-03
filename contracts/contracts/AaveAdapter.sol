@@ -2,44 +2,81 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./IAavePool.sol";
+
+interface IAavePool {
+    function supply(
+        address asset,
+        uint256 amount,
+        address onBehalfOf,
+        uint16 referralCode
+    ) external;
+
+    function withdraw(
+        address asset,
+        uint256 amount,
+        address to
+    ) external returns (uint256);
+}
 
 contract AaveAdapter {
-    IERC20 public immutable usdc;
-    IERC20 public immutable aUSDC;
+    IERC20 public immutable arcUSDC;      // underlying
+    IERC20 public immutable aArcUSDC;     // aToken
     IAavePool public immutable aavePool;
+    address public immutable vault;
+
+    // ===== EVENTS =====
+    event DepositedToAave(uint256 amount);
+    event WithdrawnFromAave(uint256 amount);
 
     constructor(
-        address _usdc,
-        address _aUSDC,
-        address _aavePool
+        address _arcUSDC,
+        address _aArcUSDC,
+        address _aavePool,
+        address _vault
     ) {
-        usdc = IERC20(_usdc);
-        aUSDC = IERC20(_aUSDC);
+        arcUSDC = IERC20(_arcUSDC);
+        aArcUSDC = IERC20(_aArcUSDC);
         aavePool = IAavePool(_aavePool);
+        vault = _vault;
     }
 
-    function deposit(uint256 amount) external {
-        require(amount > 0, "amount = 0");
+    modifier onlyVault() {
+        require(msg.sender == vault, "Not vault");
+        _;
+    }
 
-        // 1. Approve Aave Pool to pull USDC
-        usdc.approve(address(aavePool), amount);
+    // ===== DEPOSIT =====
+    // arcUSDC must already be transferred to this contract
+    function deposit(uint256 amount) external onlyVault {
+        require(amount > 0, "Zero amount");
 
-        // 2. Supply USDC to Aave
+        arcUSDC.approve(address(aavePool), amount);
+
         aavePool.supply(
-            address(usdc),
+            address(arcUSDC),
             amount,
             address(this),
             0
         );
 
-        emit YieldDeployed(amount, block.timestamp);
+        emit DepositedToAave(amount);
     }
 
-    function getBalance() external view returns (uint256) {
-        return aUSDC.balanceOf(address(this));
+    // ===== WITHDRAW =====
+    function withdraw(uint256 amount) external onlyVault {
+        require(amount > 0, "Zero amount");
+
+        aavePool.withdraw(
+            address(arcUSDC),
+            amount,
+            vault
+        );
+
+        emit WithdrawnFromAave(amount);
     }
 
-    event YieldDeployed(uint256 amount, uint256 timestamp);
-    event BalanceReported(uint256 aTokenBalance, uint256 timestamp);
+    // ===== VIEW =====
+    function totalValue() external view returns (uint256) {
+        return aArcUSDC.balanceOf(address(this));
+    }
 }
