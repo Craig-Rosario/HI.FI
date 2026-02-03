@@ -5,6 +5,8 @@ import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import { IPool } from '@/models/Pool'
+import { useInvest } from '@/hooks/use-invest'
+import { InvestmentProgressModal } from '@/components/investment-progress-modal'
 
 // Type for the UI pool with additional display properties
 interface UIPool extends Omit<IPool, 'createdAt' | 'updatedAt'> {
@@ -47,6 +49,10 @@ export default function PoolsPage() {
   const [selectedChain, setSelectedChain] = useState('ethereum')
   const [investAmount, setInvestAmount] = useState('')
   const [showChainDropdown, setShowChainDropdown] = useState(false)
+  const [showProgressModal, setShowProgressModal] = useState(false)
+  
+  // Investment hook
+  const { state: investState, invest, reset: resetInvest } = useInvest()
 
   // Fetch pools from API
   useEffect(() => {
@@ -126,6 +132,23 @@ export default function PoolsPage() {
     setShowChainDropdown(false)
     // Restore body scroll when modal is closed
     document.body.style.overflow = 'unset'
+  }
+
+  const handleConfirmInvestment = async () => {
+    if (!selectedPool || !investAmount) return
+    
+    // Close the pool modal and show progress modal
+    closeModal()
+    setShowProgressModal(true)
+    
+    // Start the investment flow
+    await invest(investAmount, selectedPool)
+  }
+
+  const handleCloseProgressModal = () => {
+    setShowProgressModal(false)
+    resetInvest()
+    setInvestAmount('')
   }
 
   const getCurrentPool = () => pools.find(pool => pool.id === selectedPool)
@@ -496,6 +519,7 @@ export default function PoolsPage() {
                   </Button>
                   <Button
                     disabled={!investAmount || parseFloat(investAmount) < (getCurrentPool()?.minDeposit || 0)}
+                    onClick={handleConfirmInvestment}
                     className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
                   >
                     Confirm Investment
@@ -507,6 +531,16 @@ export default function PoolsPage() {
         </div>
       )}
 
+      {/* Investment Progress Modal */}
+      <InvestmentProgressModal
+        isOpen={showProgressModal}
+        onClose={handleCloseProgressModal}
+        step={investState.step}
+        message={investState.message}
+        txHash={investState.txHash}
+        error={investState.error}
+        amount={investAmount}
+      />
 
     </div>
   )
