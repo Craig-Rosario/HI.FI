@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { ethers, BrowserProvider, Contract } from 'ethers';
 
 // Contract addresses from env
-const getAddresses = () => ({
+const getAddresses = (poolVaultAddress?: string) => ({
   arcUsdc: process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || '',
-  poolVault: process.env.NEXT_PUBLIC_POOL_VAULT_ADDRESS || '',
+  poolVault: poolVaultAddress || process.env.NEXT_PUBLIC_POOL_VAULT_ADDRESS || '',
 });
 
 // ABIs

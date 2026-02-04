@@ -12,6 +12,8 @@ export interface IPool {
   minDeposit: number; // Minimum deposit amount in USDC
   contractAddress: string; // Smart contract address for this pool
   chainId: number; // Chain ID where the pool is deployed
+  riskLevel: 'low' | 'medium' | 'high'; // Risk level of the pool
+  adapterType: 'aave' | 'simulated' | 'compound' | 'other'; // Type of yield adapter
   // On-chain enriched fields (from API, not stored in DB)
   withdrawOpen?: boolean; // Is withdraw available now?
   withdrawTimeLeft?: number; // Seconds until withdraw opens
@@ -67,6 +69,18 @@ const PoolSchema = new mongoose.Schema<IPool>({
   },
   chainId: {
     type: Number,
+    required: true,
+  },
+  riskLevel: {
+    type: String,
+    enum: ['low', 'medium', 'high'],
+    default: 'low',
+    required: true,
+  },
+  adapterType: {
+    type: String,
+    enum: ['aave', 'simulated', 'compound', 'other'],
+    default: 'aave',
     required: true,
   },
 }, {
