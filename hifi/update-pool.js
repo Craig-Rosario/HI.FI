@@ -1,7 +1,8 @@
+require('dotenv').config();
 const mongoose = require('mongoose');
 
 async function updatePool() {
-  await mongoose.connect('mongodb+srv://craigr:hifipasscode@hifi.7kbsfr8.mongodb.net/?appName=HIFI');
+  await mongoose.connect(process.env.MONGODB_URI);
   
   const result = await mongoose.connection.db.collection('pools').updateMany(
     {},
@@ -9,6 +10,7 @@ async function updatePool() {
       $set: { 
         contractAddress: '0x58ab53e0863bf9F9F0136b0a7c0a76bE955A39b5',
         state: 'COLLECTING',
+        tvl: '0',
         updatedAt: new Date()
       } 
     }
