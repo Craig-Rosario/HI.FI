@@ -12,12 +12,17 @@ import { InvestmentProgressModal } from '@/components/investment-progress-modal'
 interface UIPool extends Omit<IPool, 'createdAt' | 'updatedAt'> {
   id: string; // Use _id as id for consistency with existing UI
   risk: 'LOW' | 'MEDIUM' | 'HIGH';
-  status: 'Active' | 'Inactive';
+  status: 'Collecting' | 'Earning Yield' | 'Withdraw Open' | 'Inactive';
   currentAmount: number;
   threshold: number;
   estimatedYield: string;
   exitCalendar: string;
   waitTimeDisplay: string;
+  isCapReached: boolean;
+  progress: number; // 0-100 capped
+  userShares?: number;
+  withdrawOpen?: boolean; // Is withdraw available now?
+  withdrawTimeLeft?: number; // Seconds until withdraw opens
 }
 
 const chains = [
@@ -28,16 +33,36 @@ const chains = [
 
 // Helper function to convert DB pool to UI pool
 function convertPoolToUIPool(dbPool: IPool): UIPool {
+  const currentAmount = parseFloat(dbPool.tvl);
+  const threshold = parseFloat(dbPool.cap);
+  const isCapReached = currentAmount >= threshold;
+  const progress = Math.min(Math.round((currentAmount / threshold) * 100), 100);
+  
+  // Determine status based on state, withdrawOpen, and TVL
+  let status: UIPool['status'] = 'Inactive';
+  if (dbPool.state === 'COLLECTING') {
+    status = 'Collecting'; // Will show "Auto-deploying" if isCapReached
+  } else if (dbPool.state === 'DEPLOYED') {
+    // If withdraw is open (1 min after deployment), show Withdraw Open
+    status = dbPool.withdrawOpen ? 'Withdraw Open' : 'Earning Yield';
+  } else if (dbPool.state === 'WITHDRAW_WINDOW') {
+    status = 'Withdraw Open';
+  }
+  
   return {
     ...dbPool,
     id: dbPool._id,
     risk: 'LOW', // All pools are low risk now
-    status: dbPool.state === 'COLLECTING' ? 'Active' : 'Inactive',
-    currentAmount: parseFloat(dbPool.tvl),
-    threshold: parseFloat(dbPool.cap),
+    status,
+    currentAmount,
+    threshold,
     estimatedYield: dbPool.apy === '0' ? '5-8' : dbPool.apy, // Default estimate if no APY set
     exitCalendar: 'Weekly', // Default for low risk pool
     waitTimeDisplay: `~${Math.ceil(dbPool.waitTime / 60)} minutes`,
+    isCapReached,
+    progress,
+    withdrawOpen: dbPool.withdrawOpen,
+    withdrawTimeLeft: dbPool.withdrawTimeLeft,
   };
 }
 
@@ -50,9 +75,29 @@ export default function PoolsPage() {
   const [investAmount, setInvestAmount] = useState('')
   const [showChainDropdown, setShowChainDropdown] = useState(false)
   const [showProgressModal, setShowProgressModal] = useState(false)
-  
+  const [withdrawPool, setWithdrawPool] = useState<string | null>(null)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [userAddress, setUserAddress] = useState<string | null>(null)
+  const [userShares, setUserShares] = useState<Record<string, string>>({})
   // Investment hook
   const { state: investState, invest, reset: resetInvest } = useInvest()
+
+  // Get user wallet address
+  useEffect(() => {
+    const getAddress = async () => {
+      if (typeof window !== 'undefined' && window.ethereum) {
+        try {
+          const accounts = await window.ethereum.request({ method: 'eth_accounts' })
+          if (accounts?.length > 0) {
+            setUserAddress(accounts[0])
+          }
+        } catch (err) {
+          console.error('Failed to get accounts:', err)
+        }
+      }
+    }
+    getAddress()
+  }, [])
 
   // Fetch pools from API
   useEffect(() => {
@@ -106,10 +151,20 @@ export default function PoolsPage() {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    return status === 'Active'
-      ? 'text-green-400 bg-green-500/10 border-green-500/20'
-      : 'text-orange-400 bg-orange-500/10 border-orange-500/20'
+  const getStatusColor = (status: string, isCapReached?: boolean) => {
+    if (status === 'Collecting' && isCapReached) {
+      return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/20' // Auto-deploying
+    }
+    switch (status) {
+      case 'Collecting':
+        return 'text-green-400 bg-green-500/10 border-green-500/20'
+      case 'Earning Yield':
+        return 'text-blue-400 bg-blue-500/10 border-blue-500/20'
+      case 'Withdraw Open':
+        return 'text-purple-400 bg-purple-500/10 border-purple-500/20'
+      default:
+        return 'text-orange-400 bg-orange-500/10 border-orange-500/20'
+    }
   }
 
   const formatUSDC = (amount: number) => {
@@ -151,7 +206,126 @@ export default function PoolsPage() {
     setInvestAmount('')
   }
 
+  // Open withdraw modal
+  const openWithdrawModal = (poolId: string) => {
+    setWithdrawPool(poolId)
+    document.body.style.overflow = 'hidden'
+  }
+  
+  const closeWithdrawModal = () => {
+    setWithdrawPool(null)
+    document.body.style.overflow = 'unset'
+  }
+
+  // Handle withdraw - calls smart contract via MetaMask
+  // Flow: Vault withdraws from Aave → Wraps to arcUSDC → Sends to user → User unwraps to USDC
+  const handleWithdraw = async () => {
+    if (!withdrawPool || withdrawing) return
+    if (!window.ethereum) {
+      alert('Please install MetaMask')
+      return
+    }
+    
+    setWithdrawing(true)
+    
+    try {
+      const pool = pools.find(p => p.id === withdrawPool)
+      if (!pool) throw new Error('Pool not found')
+      
+      // Import ethers dynamically
+      const { ethers } = await import('ethers')
+      
+      // Switch to Base Sepolia
+      try {
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: '0x14a34' }], // 84532 in hex
+        })
+      } catch (switchError: any) {
+        // Chain not added, add it
+        if (switchError.code === 4902) {
+          await window.ethereum.request({
+            method: 'wallet_addEthereumChain',
+            params: [{
+              chainId: '0x14a34',
+              chainName: 'Base Sepolia',
+              nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
+              rpcUrls: ['https://sepolia.base.org'],
+              blockExplorerUrls: ['https://sepolia.basescan.org'],
+            }],
+          })
+        }
+      }
+      
+      const provider = new ethers.BrowserProvider(window.ethereum)
+      const signer = await provider.getSigner()
+      const userAddr = await signer.getAddress()
+      
+      // Pool Vault ABI (Aave integrated)
+      const vaultAbi = [
+        'function shares(address) external view returns (uint256)',
+        'function withdraw(uint256 shareAmount) external',
+        'function isWithdrawOpen() external view returns (bool)',
+        'function previewWithdraw(address user) external view returns (uint256)',
+      ]
+      
+      const vault = new ethers.Contract(pool.contractAddress, vaultAbi, signer)
+      
+      // Check user shares
+      const userShares = await vault.shares(userAddr)
+      if (userShares === BigInt(0)) {
+        throw new Error('You have no shares in this pool')
+      }
+      
+      // Preview how much user will receive (including yield)
+      try {
+        const previewAmount = await vault.previewWithdraw(userAddr)
+        console.log(`Withdrawing ${ethers.formatUnits(previewAmount, 6)} USDC (including yield)`)
+      } catch {
+        // Old contract might not have this
+      }
+      
+      // Withdraw shares (contract handles Aave withdrawal + wrapping to arcUSDC)
+      const withdrawTx = await vault.withdraw(userShares)
+      await withdrawTx.wait()
+      
+      // Now unwrap arcUSDC to USDC (user receives arcUSDC from vault)
+      const arcUsdcAddress = process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS
+      if (arcUsdcAddress) {
+        const arcUsdcAbi = [
+          'function balanceOf(address) external view returns (uint256)',
+          'function withdraw(uint256 amount) external',
+        ]
+        const arcUsdc = new ethers.Contract(arcUsdcAddress, arcUsdcAbi, signer)
+        const arcBalance = await arcUsdc.balanceOf(userAddr)
+        
+        if (arcBalance > BigInt(0)) {
+          console.log(`Unwrapping ${ethers.formatUnits(arcBalance, 6)} arcUSDC to USDC`)
+          const unwrapTx = await arcUsdc.withdraw(arcBalance)
+          await unwrapTx.wait()
+        }
+      }
+      
+      closeWithdrawModal()
+      
+      // Refresh pools after withdrawal
+      const poolsResponse = await fetch('/api/pools')
+      const poolsData = await poolsResponse.json()
+      if (poolsData.success) {
+        setPools(poolsData.data.map(convertPoolToUIPool))
+      }
+      
+      alert('Successfully withdrew! USDC sent to your wallet.')
+    } catch (err: any) {
+      console.error('Withdraw error:', err)
+      alert(`Withdraw failed: ${err.reason || err.message || 'Unknown error'}`)
+    } finally {
+      setWithdrawing(false)
+    }
+  }
+
   const getCurrentPool = () => pools.find(pool => pool.id === selectedPool)
+  const getWithdrawPool = () => pools.find(pool => pool.id === withdrawPool)
 
   // Loading state
   if (loading) {
@@ -228,8 +402,8 @@ export default function PoolsPage() {
                 <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getRiskColor(pool.risk)}`}>
                   {pool.risk}
                 </span>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(pool.status)}`}>
-                  {pool.status}
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(pool.status, pool.isCapReached)}`}>
+                  {pool.status === 'Collecting' && pool.isCapReached ? 'Deploying' : pool.status}
                 </span>
               </div>
               <p className="text-sm text-gray-300">{pool.description}</p>
@@ -242,12 +416,16 @@ export default function PoolsPage() {
               </div>
               <div className="w-full bg-gray-800 rounded-full h-3">
                 <div
-                  className="bg-linear-to-r from-blue-600 to-blue-400 h-3 rounded-full transition-all duration-300"
-                  style={{ width: `${(pool.currentAmount / pool.threshold) * 100}%` }}
+                  className={`h-3 rounded-full transition-all duration-300 ${
+                    pool.isCapReached 
+                      ? 'bg-linear-to-r from-green-600 to-green-400' 
+                      : 'bg-linear-to-r from-blue-600 to-blue-400'
+                  }`}
+                  style={{ width: `${pool.progress}%` }}
                 />
               </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {Math.round((pool.currentAmount / pool.threshold) * 100)}% funded
+              <p className={`text-xs mt-1 ${pool.isCapReached ? 'text-green-400' : 'text-gray-400'}`}>
+                {pool.isCapReached ? '✓ Cap reached - Ready to deploy' : `${pool.progress}% funded`}
               </p>
             </div>
 
@@ -270,13 +448,63 @@ export default function PoolsPage() {
               </div>
             </div>
 
-            <Button 
-              size="sm" 
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white"
-              onClick={() => openModal(pool.id)}
-            >
-              Join Pool
-            </Button>
+            {/* Show different buttons based on pool state */}
+            {pool.status === 'Collecting' && !pool.isCapReached && (
+              <Button 
+                size="sm" 
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => openModal(pool.id)}
+              >
+                Join Pool
+              </Button>
+            )}
+            
+            {pool.status === 'Collecting' && pool.isCapReached && (
+              <div className="space-y-2">
+                <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-center animate-pulse">
+                  <span className="text-yellow-400 text-sm">⏳ Auto-deploying to Aave...</span>
+                </div>
+                <p className="text-xs text-center text-gray-400">Pool is full - automatically deploying to earn yield</p>
+              </div>
+            )}
+            
+            {pool.status === 'Earning Yield' && (
+              <div className="space-y-2">
+                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-center">
+                  <span className="text-green-400 text-sm">💰 Earning {pool.estimatedYield}% APY on Aave</span>
+                </div>
+                {pool.withdrawTimeLeft !== undefined && pool.withdrawTimeLeft > 0 && (
+                  <p className="text-xs text-center text-gray-400">
+                    ⏱️ Withdraw opens in {pool.withdrawTimeLeft}s
+                  </p>
+                )}
+              </div>
+            )}
+            
+            {pool.status === 'Withdraw Open' && (
+              <div className="space-y-3">
+                <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 text-center">
+                  <span className="text-purple-400 text-sm">🔓 Withdraw Available</span>
+                </div>
+                <Button 
+                  size="sm" 
+                  className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+                  onClick={() => openWithdrawModal(pool.id)}
+                >
+                  Withdraw Funds + Interest
+                </Button>
+              </div>
+            )}
+            
+            {pool.status === 'Inactive' && (
+              <Button 
+                size="sm" 
+                className="w-full bg-gray-600 text-white cursor-not-allowed"
+                disabled
+              >
+                Pool Closed
+              </Button>
+            )}
           </div>
         ))}
       </div>
@@ -541,6 +769,68 @@ export default function PoolsPage() {
         error={investState.error}
         amount={investAmount}
       />
+
+      {/* Withdraw Modal */}
+      {withdrawPool && (
+        <div className="fixed inset-0 z-40 overflow-hidden">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-md"
+            onClick={closeWithdrawModal}
+          />
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <div className="relative bg-gray-900 rounded-xl border border-gray-700 p-6 max-w-md w-full">
+              <button
+                onClick={closeWithdrawModal}
+                className="absolute top-4 right-4 text-gray-400 hover:text-white"
+              >
+                <X size={24} />
+              </button>
+              
+              <h2 className="text-2xl font-bold mb-4">Withdraw from Pool</h2>
+              
+              <div className="space-y-4">
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <div className="text-sm text-gray-400 mb-1">Pool</div>
+                  <div className="font-semibold">{getWithdrawPool()?.name}</div>
+                </div>
+                
+                <div className="bg-gray-800 rounded-lg p-4">
+                  <div className="text-sm text-gray-400 mb-1">Available to Withdraw</div>
+                  <div className="font-semibold text-2xl text-green-400">
+                    {getWithdrawPool()?.currentAmount.toFixed(2)} USDC
+                  </div>
+                </div>
+                
+                <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
+                  <h4 className="font-semibold text-purple-400 mb-2">Withdrawal Flow</h4>
+                  <ol className="text-sm text-gray-300 space-y-1 list-decimal list-inside">
+                    <li>Aave aUSDC → arcUSDC (in vault)</li>
+                    <li>arcUSDC → Your wallet</li>
+                    <li>Unwrap arcUSDC → USDC</li>
+                  </ol>
+                </div>
+
+                <div className="flex gap-4 pt-4">
+                  <Button
+                    variant="outline"
+                    onClick={closeWithdrawModal}
+                    className="flex-1 border-gray-600 hover:bg-gray-800"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleWithdraw}
+                    disabled={withdrawing}
+                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                  >
+                    {withdrawing ? 'Processing...' : 'Withdraw All'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   )
