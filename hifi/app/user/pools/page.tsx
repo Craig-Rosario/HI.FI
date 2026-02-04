@@ -38,6 +38,14 @@ function convertPoolToUIPool(dbPool: IPool): UIPool {
   const isCapReached = currentAmount >= threshold;
   const progress = Math.min(Math.round((currentAmount / threshold) * 100), 100);
   
+  // Convert risk level from db format to UI format
+  const riskMap: Record<string, 'LOW' | 'MEDIUM' | 'HIGH'> = {
+    'low': 'LOW',
+    'medium': 'MEDIUM', 
+    'high': 'HIGH'
+  };
+  const risk = riskMap[dbPool.riskLevel] || 'LOW';
+  
   // Determine status based on state, withdrawOpen, and TVL
   let status: UIPool['status'] = 'Inactive';
   if (dbPool.state === 'COLLECTING') {
@@ -49,15 +57,22 @@ function convertPoolToUIPool(dbPool: IPool): UIPool {
     status = 'Withdraw Open';
   }
   
+  // Set exit calendar based on risk level
+  const exitCalendarMap: Record<string, string> = {
+    'LOW': 'Weekly',
+    'MEDIUM': 'Bi-weekly',
+    'HIGH': 'Monthly'
+  };
+  
   return {
     ...dbPool,
     id: dbPool._id,
-    risk: 'LOW', // All pools are low risk now
+    risk,
     status,
     currentAmount,
     threshold,
-    estimatedYield: dbPool.apy === '0' ? '5-8' : dbPool.apy, // Default estimate if no APY set
-    exitCalendar: 'Weekly', // Default for low risk pool
+    estimatedYield: dbPool.apy === '0' ? (risk === 'MEDIUM' ? '-2 to +6' : '5-8') : dbPool.apy, // Different estimate for medium risk
+    exitCalendar: exitCalendarMap[risk] || 'Weekly',
     waitTimeDisplay: `~${Math.ceil(dbPool.waitTime / 60)} minutes`,
     isCapReached,
     progress,
@@ -192,12 +207,16 @@ export default function PoolsPage() {
   const handleConfirmInvestment = async () => {
     if (!selectedPool || !investAmount) return
     
+    // Get the pool's contract address
+    const pool = pools.find(p => p.id === selectedPool)
+    const poolContractAddress = pool?.contractAddress
+    
     // Close the pool modal and show progress modal
     closeModal()
     setShowProgressModal(true)
     
-    // Start the investment flow
-    await invest(investAmount, selectedPool)
+    // Start the investment flow with the pool-specific contract address
+    await invest(investAmount, selectedPool, poolContractAddress)
   }
 
   const handleCloseProgressModal = () => {
@@ -462,16 +481,25 @@ export default function PoolsPage() {
             {pool.status === 'Collecting' && pool.isCapReached && (
               <div className="space-y-2">
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-center animate-pulse">
-                  <span className="text-yellow-400 text-sm">⏳ Auto-deploying to Aave...</span>
+                  <span className="text-yellow-400 text-sm">
+                    ⏳ {pool.adapterType === 'simulated' ? 'Auto-deploying to Strategy...' : 'Auto-deploying to Aave...'}
+                  </span>
                 </div>
-                <p className="text-xs text-center text-gray-400">Pool is full - automatically deploying to earn yield</p>
+                <p className="text-xs text-center text-gray-400">
+                  Pool is full - automatically deploying to earn yield
+                </p>
               </div>
             )}
             
             {pool.status === 'Earning Yield' && (
               <div className="space-y-2">
-                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3 text-center">
-                  <span className="text-green-400 text-sm">💰 Earning {pool.estimatedYield}% APY on Aave</span>
+                <div className={`${pool.risk === 'MEDIUM' ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-green-500/10 border-green-500/20'} border rounded-lg p-3 text-center`}>
+                  <span className={`${pool.risk === 'MEDIUM' ? 'text-yellow-400' : 'text-green-400'} text-sm`}>
+                    {pool.adapterType === 'simulated' 
+                      ? `📊 Simulating ${pool.estimatedYield}% APY` 
+                      : `💰 Earning ${pool.estimatedYield}% APY on Aave`
+                    }
+                  </span>
                 </div>
                 {pool.withdrawTimeLeft !== undefined && pool.withdrawTimeLeft > 0 && (
                   <p className="text-xs text-center text-gray-400">
@@ -804,10 +832,25 @@ export default function PoolsPage() {
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
                   <h4 className="font-semibold text-purple-400 mb-2">Withdrawal Flow</h4>
                   <ol className="text-sm text-gray-300 space-y-1 list-decimal list-inside">
-                    <li>Aave aUSDC → arcUSDC (in vault)</li>
-                    <li>arcUSDC → Your wallet</li>
-                    <li>Unwrap arcUSDC → USDC</li>
+                    {getWithdrawPool()?.adapterType === 'simulated' ? (
+                      <>
+                        <li>Strategy USDC → arcUSDC (in vault)</li>
+                        <li>arcUSDC → Your wallet</li>
+                        <li>Unwrap arcUSDC → USDC</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>Aave aUSDC → arcUSDC (in vault)</li>
+                        <li>arcUSDC → Your wallet</li>
+                        <li>Unwrap arcUSDC → USDC</li>
+                      </>
+                    )}
                   </ol>
+                  {getWithdrawPool()?.risk === 'MEDIUM' && (
+                    <p className="text-xs text-yellow-400 mt-2">
+                      ⚠️ Medium risk pool - final amount may vary based on simulated PnL
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-4 pt-4">
