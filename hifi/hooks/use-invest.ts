@@ -73,7 +73,7 @@ interface InvestmentState {
 
 interface UseInvestReturn {
   state: InvestmentState;
-  invest: (amount: string, poolId: string) => Promise<void>;
+  invest: (amount: string, poolId: string, poolContractAddress?: string) => Promise<void>;
   reset: () => void;
 }
 
@@ -152,7 +152,7 @@ export const useInvest = (): UseInvestReturn => {
     }
   };
 
-  const invest = async (amount: string, poolId: string) => {
+  const invest = async (amount: string, poolId: string, poolContractAddress?: string) => {
     if (!window.ethereum) {
       setError('MetaMask is not installed. Please install MetaMask to continue.');
       return;
@@ -160,12 +160,15 @@ export const useInvest = (): UseInvestReturn => {
 
     // Use env variables with fallbacks
     const arcUsdcAddress = process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || ARC_USDC_BASE_SEPOLIA;
-    const poolVaultAddress = process.env.NEXT_PUBLIC_POOL_VAULT_ADDRESS;
+    // Use pool-specific contract address if provided, otherwise fall back to env variable
+    const poolVaultAddress = poolContractAddress || process.env.NEXT_PUBLIC_POOL_VAULT_ADDRESS;
 
     console.log('Contract addresses:', {
       arcUsdcAddress,
       poolVaultAddress,
-      usdcBaseSepolia: USDC_BASE_SEPOLIA
+      usdcBaseSepolia: USDC_BASE_SEPOLIA,
+      poolId,
+      usingPoolSpecificAddress: !!poolContractAddress
     });
 
     if (!poolVaultAddress) {

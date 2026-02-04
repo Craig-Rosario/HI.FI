@@ -3,18 +3,21 @@ import { ethers } from 'ethers';
 import connectToDatabase from '@/lib/mongodb';
 import Pool from '@/models/Pool';
 
-// ABI for reading vault state (supports both old and new contracts)
+// ABI for reading vault state (supports both Aave and Medium Risk contracts)
 const POOL_VAULT_ABI = [
   'function state() external view returns (uint8)',
   'function cap() external view returns (uint256)',
   'function totalShares() external view returns (uint256)',
   'function totalAssets() external view returns (uint256)',
-  // New Aave contract functions
+  // Both Aave and Medium Risk contract functions
   'function deployedAt() external view returns (uint256)',
   'function isWithdrawOpen() external view returns (bool)',
   'function timeUntilWithdraw() external view returns (uint256)',
   'function totalAssetsDeployed() external view returns (uint256)',
   'function yieldEarned() external view returns (uint256)',
+  // Medium Risk specific
+  'function currentPnL() external view returns (int256)',
+  'function deployedAssets() external view returns (uint256)',
 ];
 
 const ARC_USDC_ABI = [
@@ -32,8 +35,14 @@ const RPC_ENDPOINTS: Record<number, string> = {
 
 /**
  * Fetch on-chain TVL for a pool (handles both COLLECTING and DEPLOYED states)
+ * Supports both Aave (aUSDC) and Simulated (internal) adapters
  */
-async function getOnChainTVL(contractAddress: string, chainId: number, state: string): Promise<string> {
+async function getOnChainTVL(
+  contractAddress: string, 
+  chainId: number, 
+  state: string,
+  adapterType?: string
+): Promise<string> {
   try {
     const rpcUrl = RPC_ENDPOINTS[chainId];
     if (!rpcUrl) {
@@ -43,8 +52,21 @@ async function getOnChainTVL(contractAddress: string, chainId: number, state: st
 
     const provider = new ethers.JsonRpcProvider(rpcUrl);
     
-    // If DEPLOYED, check aUSDC balance (funds are in Aave)
+    // If DEPLOYED, check based on adapter type
     if (state === 'DEPLOYED') {
+      // For simulated adapter, use totalAssetsDeployed from vault
+      if (adapterType === 'simulated') {
+        try {
+          const vault = new ethers.Contract(contractAddress, POOL_VAULT_ABI, provider);
+          const assets = await vault.totalAssetsDeployed();
+          return ethers.formatUnits(assets, 6);
+        } catch (error) {
+          console.warn('Failed to read totalAssetsDeployed for simulated adapter:', error);
+          return '0';
+        }
+      }
+      
+      // For Aave adapter, check aUSDC balance
       try {
         const aUsdc = new ethers.Contract(AUSDC_ADDRESS, ARC_USDC_ABI, provider);
         const balance = await aUsdc.balanceOf(contractAddress);
@@ -173,6 +195,7 @@ async function autoDeployIfCapReached(
  * GET /api/pools
  * Fetches all pools from MongoDB and enriches with on-chain data
  * Automatically triggers deployment when cap is reached
+ * Syncs MongoDB state with on-chain state (including pool resets)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -188,8 +211,27 @@ export async function GET(request: NextRequest) {
         // Fetch on-chain state first
         const onChainState = await getOnChainState(pool.contractAddress, pool.chainId);
         
-        // Fetch TVL (handles both COLLECTING and DEPLOYED states)
-        const onChainTVL = await getOnChainTVL(pool.contractAddress, pool.chainId, onChainState);
+        // Fetch TVL (handles both COLLECTING and DEPLOYED states, supports different adapters)
+        const onChainTVL = await getOnChainTVL(
+          pool.contractAddress, 
+          pool.chainId, 
+          onChainState,
+          pool.adapterType // Pass adapter type for proper TVL calculation
+        );
+        
+        // Sync MongoDB state with on-chain state if different
+        // This handles pool resets (DEPLOYED/WITHDRAW_WINDOW -> COLLECTING)
+        if (pool.state !== onChainState) {
+          try {
+            await Pool.updateOne(
+              { _id: pool._id },
+              { $set: { state: onChainState, updatedAt: new Date() } }
+            );
+            console.log(`Synced pool ${pool.name} state: ${pool.state} -> ${onChainState}`);
+          } catch (err) {
+            console.error('Failed to sync pool state:', err);
+          }
+        }
         
         // Auto-deploy if cap is reached and still collecting
         let finalState = await autoDeployIfCapReached(
@@ -264,6 +306,8 @@ export async function POST(request: NextRequest) {
       minDeposit: body.minDeposit || 100, // 100 USDC default
       contractAddress: body.contractAddress,
       chainId: body.chainId || 31337, // Default to local network
+      riskLevel: body.riskLevel || 'low', // Default to low risk
+      adapterType: body.adapterType || 'aave', // Default to aave adapter
     });
 
     return NextResponse.json(
