@@ -8,7 +8,7 @@ async function updatePool() {
     {},
     { 
       $set: { 
-        contractAddress: '0x58ab53e0863bf9F9F0136b0a7c0a76bE955A39b5',
+        contractAddress: '0x83a160f38b240Ae0AE67299DeE3134F77716D050',
         state: 'COLLECTING',
         tvl: '0',
         updatedAt: new Date()

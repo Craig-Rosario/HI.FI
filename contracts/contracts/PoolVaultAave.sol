@@ -66,6 +66,7 @@ contract PoolVaultAave {
     event Deposited(address indexed user, uint256 amount, uint256 sharesMinted);
     event DeployedToAave(uint256 principal, uint256 timestamp);
     event Withdrawn(address indexed user, uint256 arcUsdcAmount, uint256 sharesBurned);
+    event PoolReset();
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     // ===== MODIFIERS =====
@@ -209,6 +210,14 @@ contract PoolVaultAave {
         require(success, "Transfer failed");
 
         emit Withdrawn(msg.sender, arcBalance, shareAmount);
+
+        // AUTO-RESET: If all shares withdrawn, reset pool for new deposits
+        if (totalShares == 0) {
+            state = State.COLLECTING;
+            principalDeposited = 0;
+            deployedAt = 0;
+            emit PoolReset();
+        }
     }
 
     /**
@@ -299,5 +308,17 @@ contract PoolVaultAave {
         require(state == State.DEPLOYED, "Not deployed");
         uint256 aaveBalance = totalAssetsDeployed();
         aavePool.withdraw(address(usdc), aaveBalance, address(this));
+    }
+
+    /**
+     * @notice Force reset pool to COLLECTING state (owner only)
+     * @dev Use only when pool is empty (totalShares == 0)
+     */
+    function forceResetPool() external onlyOwner {
+        require(totalShares == 0, "Pool has active shares");
+        state = State.COLLECTING;
+        principalDeposited = 0;
+        deployedAt = 0;
+        emit PoolReset();
     }
 }
