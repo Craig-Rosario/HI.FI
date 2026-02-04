@@ -7,20 +7,15 @@ async function main() {
   console.log("Deployer:", deployer.address);
   console.log("Deployer balance:", hre.ethers.formatEther(await hre.ethers.provider.getBalance(deployer.address)), "ETH");
 
-  // Deploy MockUSDC first
-  console.log("\n📋 Deploying MockUSDC...");
-  const MockUSDC = await hre.ethers.getContractFactory("MockUSDC");
-  const usdc = await MockUSDC.deploy();
-  await usdc.waitForDeployment();
+  // arcUSDC address on Base Sepolia (Circle Gateway)
+  const ARC_USDC_ADDRESS = "0x0DD76fB7C83A84C57C81A4353B565f34016aBaf8";
+  console.log("\n📋 Using arcUSDC at:", ARC_USDC_ADDRESS);
 
-  const usdcAddress = await usdc.getAddress();
-  console.log("✅ MockUSDC deployed at:", usdcAddress);
-
-  // Deploy PoolVault
+  // Deploy PoolVault with arcUSDC
   console.log("\n🏦 Deploying PoolVault...");
   const CAP = hre.ethers.parseUnits("1000000", 6); // 1M USDC cap
   const PoolVault = await hre.ethers.getContractFactory("PoolVault");
-  const poolVault = await PoolVault.deploy(usdcAddress, CAP);
+  const poolVault = await PoolVault.deploy(ARC_USDC_ADDRESS, CAP);
   await poolVault.waitForDeployment();
 
   const poolVaultAddress = await poolVault.getAddress();
@@ -37,8 +32,8 @@ async function main() {
 
   const AaveAdapter = await hre.ethers.getContractFactory("AaveAdapter");
   const aaveAdapter = await AaveAdapter.deploy(
-    usdcAddress,      // underlying USDC
-    mockAToken,       // aUSDC token address
+    ARC_USDC_ADDRESS, // underlying arcUSDC
+    mockAToken,       // aToken address
     mockAavePool,     // Aave pool address
     poolVaultAddress  // vault address
   );
