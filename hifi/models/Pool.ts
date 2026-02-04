@@ -4,7 +4,7 @@ export interface IPool {
   _id: string;
   name: string;
   description: string;
-  state: 'COLLECTING' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
+  state: 'COLLECTING' | 'DEPLOYED' | 'WITHDRAW_WINDOW' | 'ACTIVE' | 'PAUSED' | 'CLOSED';
   tvl: string; // Total Value Locked (stored as string to handle decimals)
   cap: string; // Pool capacity/threshold (stored as string)
   apy: string; // Annual Percentage Yield (stored as string for precision)
@@ -12,6 +12,9 @@ export interface IPool {
   minDeposit: number; // Minimum deposit amount in USDC
   contractAddress: string; // Smart contract address for this pool
   chainId: number; // Chain ID where the pool is deployed
+  // On-chain enriched fields (from API, not stored in DB)
+  withdrawOpen?: boolean; // Is withdraw available now?
+  withdrawTimeLeft?: number; // Seconds until withdraw opens
   createdAt: Date;
   updatedAt: Date;
 }
@@ -29,7 +32,7 @@ const PoolSchema = new mongoose.Schema<IPool>({
   },
   state: {
     type: String,
-    enum: ['COLLECTING', 'ACTIVE', 'PAUSED', 'CLOSED'],
+    enum: ['COLLECTING', 'DEPLOYED', 'WITHDRAW_WINDOW', 'ACTIVE', 'PAUSED', 'CLOSED'],
     default: 'COLLECTING',
     required: true,
   },
