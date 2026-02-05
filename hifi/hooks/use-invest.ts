@@ -10,9 +10,21 @@ const GATEWAY_WALLET = '0x0077777d7EBA4688BDeF3E311b846F25870A19B9'; // Circle G
 const GATEWAY_MINTER = '0x0022222ABE238Cc2C7Bb1f21003F0a260052475B'; // Circle Gateway Minter
 const ARC_USDC_BASE_SEPOLIA = '0x0DD76fB7C83A84C57C81A4353B565f34016aBaf8'; // arcUSDC on Base Sepolia (fallback)
 
+// USDC addresses by chain
+const USDC_BY_CHAIN: Record<string, string> = {
+  ethereum: USDC_SEPOLIA,
+  base: USDC_BASE_SEPOLIA,
+};
+
 // Chain IDs
 const ETH_SEPOLIA_CHAIN_ID = 11155111;
 const BASE_SEPOLIA_CHAIN_ID = 84532;
+
+// Chain IDs by name
+const CHAIN_IDS: Record<string, number> = {
+  ethereum: ETH_SEPOLIA_CHAIN_ID,
+  base: BASE_SEPOLIA_CHAIN_ID,
+};
 
 // Bridge fee in USDC (6 decimals) - Circle Gateway max fee + buffer
 const BRIDGE_FEE = BigInt(2100000); // 2.1 USDC to cover maxFee of 2.01 + small buffer
@@ -51,6 +63,7 @@ const POOL_VAULT_ABI = [
 export type InvestmentStep = 
   | 'idle'
   | 'connecting'
+  | 'switching_to_source'
   | 'switching_to_eth'
   | 'checking_balance'
   | 'approving_usdc'
@@ -64,6 +77,9 @@ export type InvestmentStep =
   | 'complete'
   | 'error';
 
+// Source chain type for the invest function
+export type SourceChain = 'ethereum' | 'base';
+
 interface InvestmentState {
   step: InvestmentStep;
   message: string;
@@ -73,7 +89,7 @@ interface InvestmentState {
 
 interface UseInvestReturn {
   state: InvestmentState;
-  invest: (amount: string, poolId: string, poolContractAddress?: string) => Promise<void>;
+  invest: (amount: string, poolId: string, poolContractAddress?: string, sourceChain?: SourceChain) => Promise<void>;
   reset: () => void;
 }
 
@@ -152,7 +168,7 @@ export const useInvest = (): UseInvestReturn => {
     }
   };
 
-  const invest = async (amount: string, poolId: string, poolContractAddress?: string) => {
+  const invest = async (amount: string, poolId: string, poolContractAddress?: string, sourceChain: SourceChain = 'ethereum') => {
     if (!window.ethereum) {
       setError('MetaMask is not installed. Please install MetaMask to continue.');
       return;
@@ -163,10 +179,18 @@ export const useInvest = (): UseInvestReturn => {
     // Use pool-specific contract address if provided, otherwise fall back to env variable
     const poolVaultAddress = poolContractAddress || process.env.NEXT_PUBLIC_POOL_VAULT_ADDRESS;
 
+    // Determine if we need to bridge (only when source is not Base)
+    const needsBridge = sourceChain !== 'base';
+    const sourceChainId = CHAIN_IDS[sourceChain] || ETH_SEPOLIA_CHAIN_ID;
+    const sourceUsdcAddress = USDC_BY_CHAIN[sourceChain] || USDC_SEPOLIA;
+
     console.log('Contract addresses:', {
       arcUsdcAddress,
       poolVaultAddress,
-      usdcBaseSepolia: USDC_BASE_SEPOLIA,
+      sourceChain,
+      sourceChainId,
+      sourceUsdcAddress,
+      needsBridge,
       poolId,
       usingPoolSpecificAddress: !!poolContractAddress
     });
@@ -180,18 +204,23 @@ export const useInvest = (): UseInvestReturn => {
       // Convert amount to USDC units (6 decimals)
       const inputAmount = ethers.parseUnits(amount, 6);
       
-      // Validate minimum amount (must cover fees + have something left)
-      if (inputAmount <= BRIDGE_FEE + MIN_DEPOSIT_AMOUNT) {
-        throw new Error(`Minimum deposit is ${ethers.formatUnits(BRIDGE_FEE + MIN_DEPOSIT_AMOUNT, 6)} USDC (to cover ~2.1 USDC bridge fees)`);
+      // Only apply bridge fees if bridging is required
+      let netAmountAfterFees: bigint;
+      if (needsBridge) {
+        // Validate minimum amount (must cover fees + have something left)
+        if (inputAmount <= BRIDGE_FEE + MIN_DEPOSIT_AMOUNT) {
+          throw new Error(`Minimum deposit is ${ethers.formatUnits(BRIDGE_FEE + MIN_DEPOSIT_AMOUNT, 6)} USDC (to cover ~2.1 USDC bridge fees)`);
+        }
+        // Calculate net amount after bridge fees
+        netAmountAfterFees = inputAmount - BRIDGE_FEE;
+      } else {
+        // No bridge needed - direct deposit on Base
+        netAmountAfterFees = inputAmount;
       }
-      
-      // Calculate net amount after bridge fees
-      // User deposits full inputAmount to Gateway, but bridge request is for (inputAmount - fees)
-      const netAmountAfterFees = inputAmount - BRIDGE_FEE;
       
       console.log('Investment calculation:', {
         inputAmount: ethers.formatUnits(inputAmount, 6) + ' USDC',
-        bridgeFee: ethers.formatUnits(BRIDGE_FEE, 6) + ' USDC',
+        bridgeFee: needsBridge ? ethers.formatUnits(BRIDGE_FEE, 6) + ' USDC' : '0 USDC (no bridge)',
         netAmountAfterFees: ethers.formatUnits(netAmountAfterFees, 6) + ' USDC'
       });
 
@@ -208,47 +237,51 @@ export const useInvest = (): UseInvestReturn => {
 
       const userAddress = accounts[0];
 
-      // Step 2: Switch to Ethereum Sepolia
-      updateState('switching_to_eth', 'Switching to Ethereum Sepolia...');
-      await switchNetwork(ETH_SEPOLIA_CHAIN_ID);
+      // Different flow based on source chain
+      if (needsBridge) {
+        // ===== ETHEREUM → BASE BRIDGE FLOW =====
+        
+        // Step 2: Switch to Ethereum Sepolia
+        updateState('switching_to_eth', 'Switching to Ethereum Sepolia...');
+        await switchNetwork(ETH_SEPOLIA_CHAIN_ID);
 
-      // Wait for network switch
-      await new Promise(resolve => setTimeout(resolve, 1000));
+        // Wait for network switch
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-      const provider = new BrowserProvider(window.ethereum);
-      const signer = await provider.getSigner();
+        const provider = new BrowserProvider(window.ethereum);
+        const signer = await provider.getSigner();
 
-      // Step 3: Check USDC balance on Ethereum Sepolia
-      updateState('checking_balance', 'Checking USDC balance...');
-      
-      const usdcContract = new Contract(USDC_SEPOLIA, ERC20_ABI, signer);
-      const balance = await usdcContract.balanceOf(userAddress);
-      
-      if (balance < inputAmount) {
-        throw new Error(`Insufficient USDC balance. You have ${ethers.formatUnits(balance, 6)} USDC`);
-      }
+        // Step 3: Check USDC balance on Ethereum Sepolia
+        updateState('checking_balance', 'Checking USDC balance...');
+        
+        const usdcContract = new Contract(USDC_SEPOLIA, ERC20_ABI, signer);
+        const balance = await usdcContract.balanceOf(userAddress);
+        
+        if (balance < inputAmount) {
+          throw new Error(`Insufficient USDC balance. You have ${ethers.formatUnits(balance, 6)} USDC`);
+        }
 
-      // Step 4: Approve USDC for Gateway Wallet (full input amount)
-      updateState('approving_usdc', 'Approve USDC for Gateway (MetaMask popup)...');
-      
-      const currentAllowance = await usdcContract.allowance(userAddress, GATEWAY_WALLET);
-      
-      if (currentAllowance < inputAmount) {
-        const approveTx = await usdcContract.approve(GATEWAY_WALLET, inputAmount);
-        updateState('approving_usdc', 'Waiting for USDC approval confirmation...', approveTx.hash);
-        await approveTx.wait();
-      }
+        // Step 4: Approve USDC for Gateway Wallet (full input amount)
+        updateState('approving_usdc', 'Approve USDC for Gateway (MetaMask popup)...');
+        
+        const currentAllowance = await usdcContract.allowance(userAddress, GATEWAY_WALLET);
+        
+        if (currentAllowance < inputAmount) {
+          const approveTx = await usdcContract.approve(GATEWAY_WALLET, inputAmount);
+          updateState('approving_usdc', 'Waiting for USDC approval confirmation...', approveTx.hash);
+          await approveTx.wait();
+        }
 
-      // Step 5: Deposit USDC into Gateway Wallet (full input amount - fees come from this)
-      updateState('depositing_gateway', 'Deposit USDC to Gateway (MetaMask popup)...');
-      
-      console.log('Calling gatewayWallet.deposit() with:', {
-        token: USDC_SEPOLIA,
-        amount: inputAmount.toString(),
-        amountFormatted: ethers.formatUnits(inputAmount, 6) + ' USDC (includes fees)'
-      });
-      
-      const gatewayWallet = new Contract(GATEWAY_WALLET, GATEWAY_WALLET_ABI, signer);
+        // Step 5: Deposit USDC into Gateway Wallet (full input amount - fees come from this)
+        updateState('depositing_gateway', 'Deposit USDC to Gateway (MetaMask popup)...');
+        
+        console.log('Calling gatewayWallet.deposit() with:', {
+          token: USDC_SEPOLIA,
+          amount: inputAmount.toString(),
+          amountFormatted: ethers.formatUnits(inputAmount, 6) + ' USDC (includes fees)'
+        });
+        
+        const gatewayWallet = new Contract(GATEWAY_WALLET, GATEWAY_WALLET_ABI, signer);
       const depositGatewayTx = await gatewayWallet.deposit(USDC_SEPOLIA, inputAmount);
       console.log('Gateway deposit transaction submitted:', depositGatewayTx.hash);
       updateState('depositing_gateway', 'Waiting for Gateway deposit confirmation...', depositGatewayTx.hash);
@@ -366,7 +399,7 @@ export const useInvest = (): UseInvestReturn => {
       updateState('wrapping_arcusdc', 'Approve USDC for arcUSDC (MetaMask popup)...');
       console.log('Approving USDC for arcUSDC wrapping:', ethers.formatUnits(wrapAmount, 6), 'USDC');
       
-      const approveArcTx = await baseUsdc.approve(arcUsdcAddress, wrapAmount);
+      let approveArcTx = await baseUsdc.approve(arcUsdcAddress, wrapAmount);
       updateState('wrapping_arcusdc', 'Waiting for approval confirmation...', approveArcTx.hash);
       await approveArcTx.wait();
 
@@ -374,18 +407,18 @@ export const useInvest = (): UseInvestReturn => {
       updateState('wrapping_arcusdc', 'Wrapping USDC to arcUSDC (MetaMask popup)...');
       console.log('Wrapping to arcUSDC at:', arcUsdcAddress);
       
-      const arcUsdc = new Contract(arcUsdcAddress, ARC_USDC_ABI, baseSigner);
-      const wrapTx = await arcUsdc.deposit(wrapAmount);
+      let arcUsdc = new Contract(arcUsdcAddress, ARC_USDC_ABI, baseSigner);
+      let wrapTx = await arcUsdc.deposit(wrapAmount);
       updateState('wrapping_arcusdc', 'Waiting for wrap confirmation...', wrapTx.hash);
       await wrapTx.wait();
       console.log('arcUSDC wrap confirmed');
 
       // depositAmount = wrapAmount (1:1 ratio)
-      const depositAmount = wrapAmount;
+      let depositAmount = wrapAmount;
 
       // Step 12: Check PoolVault state before depositing
       updateState('approving_arcusdc', 'Checking pool status...');
-      const poolVault = new Contract(poolVaultAddress, POOL_VAULT_ABI, baseSigner);
+      let poolVault = new Contract(poolVaultAddress, POOL_VAULT_ABI, baseSigner);
       
       try {
         const vaultState = await poolVault.state();
@@ -404,7 +437,7 @@ export const useInvest = (): UseInvestReturn => {
       console.log('Approving arcUSDC for PoolVault:', ethers.formatUnits(depositAmount, 6), 'arcUSDC');
       console.log('PoolVault address:', poolVaultAddress);
       
-      const approveVaultTx = await arcUsdc.approve(poolVaultAddress, depositAmount);
+      let approveVaultTx = await arcUsdc.approve(poolVaultAddress, depositAmount);
       updateState('approving_arcusdc', 'Waiting for approval confirmation...', approveVaultTx.hash);
       await approveVaultTx.wait();
       console.log('arcUSDC approval for vault confirmed');
@@ -413,7 +446,7 @@ export const useInvest = (): UseInvestReturn => {
       updateState('depositing_vault', 'Deposit to PoolVault (MetaMask popup)...');
       console.log('Depositing to PoolVault:', ethers.formatUnits(depositAmount, 6), 'arcUSDC');
       
-      const vaultDepositTx = await poolVault.deposit(depositAmount);
+      let vaultDepositTx = await poolVault.deposit(depositAmount);
       updateState('depositing_vault', 'Waiting for vault deposit confirmation...', vaultDepositTx.hash);
       await vaultDepositTx.wait();
 
@@ -435,6 +468,104 @@ export const useInvest = (): UseInvestReturn => {
           bridgeFee: BRIDGE_FEE.toString(), // Fee deducted
         }),
       });
+
+      } else {
+        // ===== BASE DIRECT DEPOSIT FLOW (no bridging) =====
+        
+        // Step 2: Switch to Base Sepolia
+        updateState('switching_to_source', 'Switching to Base Sepolia...');
+        await switchNetwork(BASE_SEPOLIA_CHAIN_ID);
+
+        // Wait for network switch
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        const baseProvider = new BrowserProvider(window.ethereum);
+        const baseSigner = await baseProvider.getSigner();
+
+        // Step 3: Check USDC balance on Base Sepolia
+        updateState('checking_balance', 'Checking USDC balance on Base...');
+        
+        const baseUsdc = new Contract(USDC_BASE_SEPOLIA, ERC20_ABI, baseSigner);
+        const baseUsdcBalance = await baseUsdc.balanceOf(userAddress);
+        
+        if (baseUsdcBalance < inputAmount) {
+          throw new Error(`Insufficient USDC balance on Base. You have ${ethers.formatUnits(baseUsdcBalance, 6)} USDC`);
+        }
+
+        // Step 4: Approve USDC for arcUSDC wrapping
+        updateState('wrapping_arcusdc', 'Approve USDC for arcUSDC (MetaMask popup)...');
+        console.log('Approving USDC for arcUSDC wrapping:', ethers.formatUnits(inputAmount, 6), 'USDC');
+        
+        let approveArcTx = await baseUsdc.approve(arcUsdcAddress, inputAmount);
+        updateState('wrapping_arcusdc', 'Waiting for approval confirmation...', approveArcTx.hash);
+        await approveArcTx.wait();
+
+        // Step 5: Wrap USDC to arcUSDC
+        updateState('wrapping_arcusdc', 'Wrapping USDC to arcUSDC (MetaMask popup)...');
+        console.log('Wrapping to arcUSDC at:', arcUsdcAddress);
+        
+        let arcUsdc = new Contract(arcUsdcAddress, ARC_USDC_ABI, baseSigner);
+        let wrapTx = await arcUsdc.deposit(inputAmount);
+        updateState('wrapping_arcusdc', 'Waiting for wrap confirmation...', wrapTx.hash);
+        await wrapTx.wait();
+        console.log('arcUSDC wrap confirmed');
+
+        // depositAmount = inputAmount (1:1 ratio, no bridge fees)
+        let depositAmount = inputAmount;
+
+        // Step 6: Check PoolVault state before depositing
+        updateState('approving_arcusdc', 'Checking pool status...');
+        let poolVault = new Contract(poolVaultAddress, POOL_VAULT_ABI, baseSigner);
+        
+        try {
+          const vaultState = await poolVault.state();
+          console.log('PoolVault state:', vaultState);
+          // State 0 = Collecting, State 1 = Deployed, State 2 = Withdraw
+          if (vaultState !== BigInt(0)) {
+            throw new Error(`Pool is not accepting deposits. Current state: ${vaultState === BigInt(1) ? 'Deployed' : 'Withdraw'}`);
+          }
+        } catch (stateError: any) {
+          console.warn('Could not check vault state:', stateError.message);
+          // Continue anyway
+        }
+
+        // Step 7: Approve arcUSDC for PoolVault
+        updateState('approving_arcusdc', 'Approve arcUSDC for PoolVault (MetaMask popup)...');
+        console.log('Approving arcUSDC for PoolVault:', ethers.formatUnits(depositAmount, 6), 'arcUSDC');
+        console.log('PoolVault address:', poolVaultAddress);
+        
+        let approveVaultTx = await arcUsdc.approve(poolVaultAddress, depositAmount);
+        updateState('approving_arcusdc', 'Waiting for approval confirmation...', approveVaultTx.hash);
+        await approveVaultTx.wait();
+        console.log('arcUSDC approval for vault confirmed');
+
+        // Step 8: Deposit arcUSDC into PoolVault
+        updateState('depositing_vault', 'Deposit to PoolVault (MetaMask popup)...');
+        console.log('Depositing to PoolVault:', ethers.formatUnits(depositAmount, 6), 'arcUSDC');
+        
+        let vaultDepositTx = await poolVault.deposit(depositAmount);
+        updateState('depositing_vault', 'Waiting for vault deposit confirmation...', vaultDepositTx.hash);
+        await vaultDepositTx.wait();
+
+        // Complete!
+        updateState('complete', `Successfully invested ${ethers.formatUnits(depositAmount, 6)} USDC!`, vaultDepositTx.hash);
+
+        // Record the investment in our backend
+        await fetch('/api/deposit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: depositAmount.toString(),
+            sourceChain: 'base',
+            destinationChain: 'base',
+            userAddress,
+            poolId,
+            txHash: vaultDepositTx.hash,
+            inputAmount: inputAmount.toString(), // Original input amount
+            bridgeFee: '0', // No bridge fee for direct deposit
+          }),
+        });
+      }
 
     } catch (error: any) {
       console.error('Investment error:', error);

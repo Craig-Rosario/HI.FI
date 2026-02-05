@@ -5,7 +5,7 @@ import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown } from 'lucide-re
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import { IPool } from '@/models/Pool'
-import { useInvest } from '@/hooks/use-invest'
+import { useInvest, SourceChain } from '@/hooks/use-invest'
 import { InvestmentProgressModal } from '@/components/investment-progress-modal'
 
 // Type for the UI pool with additional display properties
@@ -30,6 +30,12 @@ const chains = [
   { id: 'base', name: 'Base', balance: 850.25, disabled: false, logo: '/images/base.svg' },
   { id: 'arbitrum', name: 'Arbitrum', balance: 0, disabled: true, logo: '/images/arbitrum.svg' },
 ]
+
+// Chain info for display
+const CHAIN_INFO: Record<string, { name: string; bridgeFee: number; isNative: boolean }> = {
+  ethereum: { name: 'Ethereum Sepolia', bridgeFee: 2.1, isNative: false },
+  base: { name: 'Base Sepolia', bridgeFee: 0, isNative: true },
+};
 
 // Helper function to convert DB pool to UI pool
 function convertPoolToUIPool(dbPool: IPool): UIPool {
@@ -187,8 +193,11 @@ export default function PoolsPage() {
   }
 
   const getSelectedChain = () => chains.find(chain => chain.id === selectedChain)
+  const chainInfo = CHAIN_INFO[selectedChain] || CHAIN_INFO.ethereum
+  const bridgeFee = chainInfo.bridgeFee
   const protocolFee = investAmount ? parseFloat(investAmount) * 0.005 : 0 // 0.5% fee
-  const netInvested = investAmount ? parseFloat(investAmount) - protocolFee : 0
+  const totalFees = protocolFee + bridgeFee
+  const netInvested = investAmount ? parseFloat(investAmount) - totalFees : 0
 
   const openModal = (poolId: string) => {
     setSelectedPool(poolId)
@@ -215,8 +224,8 @@ export default function PoolsPage() {
     closeModal()
     setShowProgressModal(true)
     
-    // Start the investment flow with the pool-specific contract address
-    await invest(investAmount, selectedPool, poolContractAddress)
+    // Start the investment flow with the pool-specific contract address and selected chain
+    await invest(investAmount, selectedPool, poolContractAddress, selectedChain as SourceChain)
   }
 
   const handleCloseProgressModal = () => {
@@ -704,11 +713,20 @@ export default function PoolsPage() {
                         <span className="text-gray-400">Protocol fee (0.5%)</span>
                         <span className="font-medium">{protocolFee.toFixed(2)} USDC</span>
                       </div>
+                      {bridgeFee > 0 && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-400">Bridge fee (CCTP)</span>
+                          <span className="font-medium">{bridgeFee.toFixed(2)} USDC</span>
+                        </div>
+                      )}
                       <hr className="border-gray-700" />
                       <div className="flex justify-between font-semibold">
                         <span>Net invested</span>
                         <span className="text-green-400">{netInvested.toFixed(2)} USDC</span>
                       </div>
+                      {selectedChain === 'base' && (
+                        <p className="text-xs text-green-400">✓ No bridge fees - depositing directly on Base</p>
+                      )}
                     </div>
                   </div>
                 )}
@@ -718,7 +736,7 @@ export default function PoolsPage() {
                   <div className="space-y-3">
                     <div className="flex justify-between">
                       <span className="text-gray-400">Execution chain</span>
-                      <span className="font-medium">Ethereum</span>
+                      <span className="font-medium">Base Sepolia</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Target APY</span>
@@ -759,8 +777,14 @@ export default function PoolsPage() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-400">Execution chain</span>
-                        <span className="font-medium">Ethereum</span>
+                        <span className="font-medium">Base Sepolia</span>
                       </div>
+                      {selectedChain !== 'base' && (
+                        <div className="flex justify-between text-xs text-gray-400">
+                          <span>Flow</span>
+                          <span>{getSelectedChain()?.name} USDC → arcUSDC → Pool</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -796,6 +820,7 @@ export default function PoolsPage() {
         txHash={investState.txHash}
         error={investState.error}
         amount={investAmount}
+        sourceChain={selectedChain as 'ethereum' | 'base'}
       />
 
       {/* Withdraw Modal */}
