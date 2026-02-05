@@ -7,6 +7,8 @@ import Image from 'next/image'
 import { IPool } from '@/models/Pool'
 import { useInvest, SourceChain } from '@/hooks/use-invest'
 import { InvestmentProgressModal } from '@/components/investment-progress-modal'
+import { HighRiskPoolCard } from '@/components/pools/high-risk-pool-card'
+import { AgentPermissionsManager } from '@/components/agent/agent-permissions-manager'
 
 // Type for the UI pool with additional display properties
 interface UIPool extends Omit<IPool, 'createdAt' | 'updatedAt'> {
@@ -416,6 +418,26 @@ export default function PoolsPage() {
             Please invest only what you can afford to lose and consider your risk tolerance carefully.
           </p>
         </div>
+      </div>
+
+      {/* High Risk Pool with Agent Features */}
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold mb-2">🤖 AI-Powered High Risk Pool</h2>
+          <p className="text-foreground/70">
+            Experimental pool with extreme volatility simulation and AI agent automation
+          </p>
+        </div>
+
+        <div className="grid lg:grid-cols-2 gap-6">
+          <HighRiskPoolCard />
+          <AgentPermissionsManager />
+        </div>
+      </div>
+
+      {/* Traditional Pools */}
+      <div>
+        <h2 className="text-2xl font-bold mb-4">Traditional Pools</h2>
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
