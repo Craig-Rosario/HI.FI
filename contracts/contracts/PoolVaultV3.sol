@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+<<<<<<< Updated upstream
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./StrategyExecutor.sol";
 
@@ -299,5 +300,131 @@ contract PoolVaultV3 is Ownable {
      */
     function isCapReached() external view returns (bool) {
         return _vaultAssets() >= cap;
+=======
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./StrategyExecutor.sol";
+
+/**
+ * @title PoolVaultV3
+ * @notice Vault with integrated StrategyExecutor for agentic yield management
+ */
+contract PoolVaultV3 {
+    using SafeERC20 for IERC20;
+    
+    IERC20 public immutable asset;
+    StrategyExecutor public immutable executor;
+    
+    uint256 public cap;
+    uint256 public totalDeposits;
+    uint256 public totalShares;
+    
+    mapping(address => uint256) public shares;
+    
+    enum State { COLLECTING, DEPLOYED, WITHDRAW_OPEN }
+    State public state;
+    
+    uint256 public deployedAt;
+    uint256 public constant WITHDRAW_DELAY = 60; // 1 min for demo
+    
+    address public owner;
+    
+    event Deposit(address indexed user, uint256 amount, uint256 sharesMinted);
+    event Withdraw(address indexed user, uint256 amount, uint256 sharesBurned);
+    event StrategyExecuted(uint256 v4Allocation);
+    event WithdrawWindowOpened();
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+    
+    constructor(address _asset, uint256 _cap, address _executor) {
+        asset = IERC20(_asset);
+        cap = _cap;
+        executor = StrategyExecutor(_executor);
+        owner = msg.sender;
+        state = State.COLLECTING;
+    }
+    
+    function deposit(uint256 amount) external {
+        require(state == State.COLLECTING, "Not collecting");
+        require(totalDeposits + amount <= cap, "Cap exceeded");
+        
+        asset.safeTransferFrom(msg.sender, address(this), amount);
+        
+        uint256 sharesToMint = amount; // 1:1 for simplicity
+        shares[msg.sender] += sharesToMint;
+        totalShares += sharesToMint;
+        totalDeposits += amount;
+        
+        emit Deposit(msg.sender, amount, sharesToMint);
+        
+        // Auto-deploy when cap reached
+        if (totalDeposits >= cap) {
+            _deploy();
+        }
+    }
+    
+    function _deploy() internal {
+        state = State.DEPLOYED;
+        deployedAt = block.timestamp;
+        
+        // Execute strategy via agent
+        uint256 balance = asset.balanceOf(address(this));
+        
+        // Approve executor if needed (in real impl, would transfer to v4)
+        // For demo, we just track the allocation
+        uint256 v4Allocation = executor.execute(balance);
+        
+        emit StrategyExecuted(v4Allocation);
+    }
+    
+    function openWithdrawWindow() external {
+        require(state == State.DEPLOYED, "Not deployed");
+        require(block.timestamp >= deployedAt + WITHDRAW_DELAY, "Too early");
+        
+        // Unwind v4 positions
+        executor.unwind();
+        
+        state = State.WITHDRAW_OPEN;
+        emit WithdrawWindowOpened();
+    }
+    
+    function withdraw() external {
+        require(state == State.WITHDRAW_OPEN, "Withdrawals not open");
+        
+        uint256 userShares = shares[msg.sender];
+        require(userShares > 0, "No shares");
+        
+        uint256 balance = asset.balanceOf(address(this));
+        uint256 amount = (userShares * balance) / totalShares;
+        
+        shares[msg.sender] = 0;
+        totalShares -= userShares;
+        
+        asset.safeTransfer(msg.sender, amount);
+        
+        emit Withdraw(msg.sender, amount, userShares);
+    }
+    
+    // View functions
+    function getState() external view returns (State) {
+        return state;
+    }
+    
+    function getUserShares(address user) external view returns (uint256) {
+        return shares[user];
+    }
+    
+    function withdrawOpen() external view returns (bool) {
+        return state == State.WITHDRAW_OPEN;
+    }
+    
+    function withdrawTimeLeft() external view returns (uint256) {
+        if (state != State.DEPLOYED) return 0;
+        uint256 openTime = deployedAt + WITHDRAW_DELAY;
+        if (block.timestamp >= openTime) return 0;
+        return openTime - block.timestamp;
+>>>>>>> Stashed changes
     }
 }

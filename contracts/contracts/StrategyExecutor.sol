@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+<<<<<<< Updated upstream
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./RiskPolicyRegistry.sol";
 
@@ -235,5 +236,105 @@ contract StrategyExecutor is Ownable {
      */
     function hasActivePosition(address vault) external view returns (bool hasPosition) {
         return vaultDeployments[vault] > 0;
+=======
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./RiskPolicyRegistry.sol";
+
+/**
+ * @title StrategyExecutor
+ * @notice The onchain "agent" - executes yield strategies based on risk policies
+ * @dev Reads risk constraints from RiskPolicyRegistry, enforces deterministic execution
+ */
+contract StrategyExecutor {
+    using SafeERC20 for IERC20;
+    
+    RiskPolicyRegistry public immutable registry;
+    
+    // Authorized vaults that can call execute/unwind
+    mapping(address => bool) public authorizedVaults;
+    
+    // Owner for admin functions
+    address public owner;
+    
+    // Track v4 positions per vault (for demo purposes)
+    mapping(address => uint256) public v4Positions;
+    
+    event ExecutionTriggered(address indexed vault, uint256 amount, uint256 v4Allocation);
+    event UnwindTriggered(address indexed vault, uint256 amount);
+    event VaultAuthorizationChanged(address indexed vault, bool authorized);
+    
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Not owner");
+        _;
+    }
+    
+    modifier onlyAuthorizedVault() {
+        require(authorizedVaults[msg.sender], "Not authorized vault");
+        _;
+    }
+    
+    constructor(address _registry) {
+        registry = RiskPolicyRegistry(_registry);
+        owner = msg.sender;
+    }
+    
+    function setVaultAuthorization(address vault, bool authorized) external onlyOwner {
+        authorizedVaults[vault] = authorized;
+        emit VaultAuthorizationChanged(vault, authorized);
+    }
+    
+    /**
+     * @notice Execute strategy based on risk policy
+     * @dev Called by vault when cap is reached
+     * @param amount Total amount to deploy
+     * @return v4Amount Amount allocated to Uniswap v4
+     */
+    function execute(uint256 amount) external onlyAuthorizedVault returns (uint256 v4Amount) {
+        address vault = msg.sender;
+        
+        // Get risk policy for this vault
+        uint256 maxV4Bps = registry.getMaxV4Allocation(vault);
+        
+        // Calculate v4 allocation based on policy
+        v4Amount = (amount * maxV4Bps) / 10000;
+        
+        // Track position (in real implementation, would interact with v4)
+        v4Positions[vault] = v4Amount;
+        
+        emit ExecutionTriggered(vault, amount, v4Amount);
+        
+        return v4Amount;
+    }
+    
+    /**
+     * @notice Unwind positions before withdrawal window
+     * @dev Called by vault before opening withdrawals
+     * @return unwoundAmount Amount returned from v4 positions
+     */
+    function unwind() external onlyAuthorizedVault returns (uint256 unwoundAmount) {
+        address vault = msg.sender;
+        
+        unwoundAmount = v4Positions[vault];
+        v4Positions[vault] = 0;
+        
+        emit UnwindTriggered(vault, unwoundAmount);
+        
+        return unwoundAmount;
+    }
+    
+    /**
+     * @notice Get current v4 position for a vault
+     */
+    function getV4Position(address vault) external view returns (uint256) {
+        return v4Positions[vault];
+    }
+    
+    /**
+     * @notice Check if execution is allowed based on policy
+     */
+    function canExecute(address vault) external view returns (bool) {
+        RiskPolicyRegistry.RiskPolicy memory policy = registry.getPolicy(vault);
+        return policy.isSet;
+>>>>>>> Stashed changes
     }
 }

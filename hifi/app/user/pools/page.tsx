@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown } from 'lucide-react'
+import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown, Shield } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import { IPool } from '@/models/Pool'
 import { useInvest } from '@/hooks/use-invest'
 import { InvestmentProgressModal } from '@/components/investment-progress-modal'
+import RiskQuestionnaire, { RiskLevel } from '@/components/RiskQuestionnaire'
 
 // Type for the UI pool with additional display properties
 interface UIPool extends Omit<IPool, 'createdAt' | 'updatedAt'> {
@@ -37,15 +38,15 @@ function convertPoolToUIPool(dbPool: IPool): UIPool {
   const threshold = parseFloat(dbPool.cap);
   const isCapReached = currentAmount >= threshold;
   const progress = Math.min(Math.round((currentAmount / threshold) * 100), 100);
-  
+
   // Convert risk level from db format to UI format
   const riskMap: Record<string, 'LOW' | 'MEDIUM' | 'HIGH'> = {
     'low': 'LOW',
-    'medium': 'MEDIUM', 
+    'medium': 'MEDIUM',
     'high': 'HIGH'
   };
   const risk = riskMap[dbPool.riskLevel] || 'LOW';
-  
+
   // Determine status based on state, withdrawOpen, and TVL
   let status: UIPool['status'] = 'Inactive';
   if (dbPool.state === 'COLLECTING') {
@@ -56,14 +57,14 @@ function convertPoolToUIPool(dbPool: IPool): UIPool {
   } else if (dbPool.state === 'WITHDRAW_WINDOW') {
     status = 'Withdraw Open';
   }
-  
+
   // Set exit calendar based on risk level
   const exitCalendarMap: Record<string, string> = {
     'LOW': 'Weekly',
     'MEDIUM': 'Bi-weekly',
     'HIGH': 'Monthly'
   };
-  
+
   return {
     ...dbPool,
     id: dbPool._id,
@@ -94,8 +95,21 @@ export default function PoolsPage() {
   const [withdrawing, setWithdrawing] = useState(false)
   const [userAddress, setUserAddress] = useState<string | null>(null)
   const [userShares, setUserShares] = useState<Record<string, string>>({})
+
+  // Risk questionnaire state
+  const [showRiskQuestionnaire, setShowRiskQuestionnaire] = useState(false)
+  const [userRiskLevel, setUserRiskLevel] = useState<RiskLevel | null>(null)
+
   // Investment hook
   const { state: investState, invest, reset: resetInvest } = useInvest()
+
+  // Check for existing risk level on mount
+  useEffect(() => {
+    const savedRisk = localStorage.getItem('hifi_risk_level') as RiskLevel | null
+    if (savedRisk) {
+      setUserRiskLevel(savedRisk)
+    }
+  }, [])
 
   // Get user wallet address
   useEffect(() => {
@@ -206,17 +220,23 @@ export default function PoolsPage() {
 
   const handleConfirmInvestment = async () => {
     if (!selectedPool || !investAmount) return
-    
+
     // Get the pool's contract address
     const pool = pools.find(p => p.id === selectedPool)
     const poolContractAddress = pool?.contractAddress
-    
+
     // Close the pool modal and show progress modal
     closeModal()
     setShowProgressModal(true)
+<<<<<<< Updated upstream
     
     // Start the investment flow with the pool-specific contract address
     await invest(investAmount, selectedPool, poolContractAddress)
+=======
+
+    // Start the investment flow with the pool-specific contract address and selected chain
+    await invest(investAmount, selectedPool, poolContractAddress, selectedChain as SourceChain)
+>>>>>>> Stashed changes
   }
 
   const handleCloseProgressModal = () => {
@@ -230,7 +250,7 @@ export default function PoolsPage() {
     setWithdrawPool(poolId)
     document.body.style.overflow = 'hidden'
   }
-  
+
   const closeWithdrawModal = () => {
     setWithdrawPool(null)
     document.body.style.overflow = 'unset'
@@ -244,16 +264,16 @@ export default function PoolsPage() {
       alert('Please install MetaMask')
       return
     }
-    
+
     setWithdrawing(true)
-    
+
     try {
       const pool = pools.find(p => p.id === withdrawPool)
       if (!pool) throw new Error('Pool not found')
-      
+
       // Import ethers dynamically
       const { ethers } = await import('ethers')
-      
+
       // Switch to Base Sepolia
       try {
         await window.ethereum.request({
@@ -275,11 +295,11 @@ export default function PoolsPage() {
           })
         }
       }
-      
+
       const provider = new ethers.BrowserProvider(window.ethereum)
       const signer = await provider.getSigner()
       const userAddr = await signer.getAddress()
-      
+
       // Pool Vault ABI (Aave integrated)
       const vaultAbi = [
         'function shares(address) external view returns (uint256)',
@@ -287,15 +307,15 @@ export default function PoolsPage() {
         'function isWithdrawOpen() external view returns (bool)',
         'function previewWithdraw(address user) external view returns (uint256)',
       ]
-      
+
       const vault = new ethers.Contract(pool.contractAddress, vaultAbi, signer)
-      
+
       // Check user shares
       const userShares = await vault.shares(userAddr)
       if (userShares === BigInt(0)) {
         throw new Error('You have no shares in this pool')
       }
-      
+
       // Preview how much user will receive (including yield)
       try {
         const previewAmount = await vault.previewWithdraw(userAddr)
@@ -303,11 +323,11 @@ export default function PoolsPage() {
       } catch {
         // Old contract might not have this
       }
-      
+
       // Withdraw shares (contract handles Aave withdrawal + wrapping to arcUSDC)
       const withdrawTx = await vault.withdraw(userShares)
       await withdrawTx.wait()
-      
+
       // Now unwrap arcUSDC to USDC (user receives arcUSDC from vault)
       const arcUsdcAddress = process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS
       if (arcUsdcAddress) {
@@ -317,23 +337,23 @@ export default function PoolsPage() {
         ]
         const arcUsdc = new ethers.Contract(arcUsdcAddress, arcUsdcAbi, signer)
         const arcBalance = await arcUsdc.balanceOf(userAddr)
-        
+
         if (arcBalance > BigInt(0)) {
           console.log(`Unwrapping ${ethers.formatUnits(arcBalance, 6)} arcUSDC to USDC`)
           const unwrapTx = await arcUsdc.withdraw(arcBalance)
           await unwrapTx.wait()
         }
       }
-      
+
       closeWithdrawModal()
-      
+
       // Refresh pools after withdrawal
       const poolsResponse = await fetch('/api/pools')
       const poolsData = await poolsResponse.json()
       if (poolsData.success) {
         setPools(poolsData.data.map(convertPoolToUIPool))
       }
-      
+
       alert('Successfully withdrew! USDC sent to your wallet.')
     } catch (err: any) {
       console.error('Withdraw error:', err)
@@ -403,11 +423,70 @@ export default function PoolsPage() {
         <div className="bg-orange-500/10 border border-orange-500/20 rounded-lg p-4">
           <h3 className="font-semibold text-orange-400 mb-2">⚠️ Risk Disclaimer</h3>
           <p className="text-sm text-foreground/70">
-            All investments carry risk. Higher risk pools offer potential for greater returns but also greater potential losses. 
+            All investments carry risk. Higher risk pools offer potential for greater returns but also greater potential losses.
             Please invest only what you can afford to lose and consider your risk tolerance carefully.
           </p>
         </div>
       </div>
+
+      {/* Risk Profile Banner */}
+      <div className={`rounded-lg p-4 border ${userRiskLevel
+          ? userRiskLevel === 'LOW'
+            ? 'bg-green-500/10 border-green-500/20'
+            : userRiskLevel === 'MEDIUM'
+              ? 'bg-blue-500/10 border-blue-500/20'
+              : 'bg-purple-500/10 border-purple-500/20'
+          : 'bg-gray-800/50 border-gray-700'
+        }`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Shield className={`w-6 h-6 ${userRiskLevel === 'LOW' ? 'text-green-400' :
+                userRiskLevel === 'MEDIUM' ? 'text-blue-400' :
+                  userRiskLevel === 'HIGH' ? 'text-purple-400' :
+                    'text-gray-400'
+              }`} />
+            <div>
+              <h3 className="font-semibold text-white flex items-center gap-2">
+                Your Risk Profile
+                <span className="text-xs bg-gradient-to-r from-blue-500 to-purple-500 text-white px-2 py-0.5 rounded-full">
+                  🤖 Agent-Enforced
+                </span>
+              </h3>
+              {userRiskLevel ? (
+                <p className="text-sm text-foreground/70">
+                  <span className="font-semibold">{userRiskLevel}</span> risk tolerance •
+                  {userRiskLevel === 'LOW' && ' 0% Uniswap v4 exposure'}
+                  {userRiskLevel === 'MEDIUM' && ' Up to 30% Uniswap v4 exposure'}
+                  {userRiskLevel === 'HIGH' && ' Up to 70% Uniswap v4 exposure'}
+                </p>
+              ) : (
+                <p className="text-sm text-foreground/70">
+                  Complete the risk assessment to enable agentic investment
+                </p>
+              )}
+            </div>
+          </div>
+          <Button
+            onClick={() => setShowRiskQuestionnaire(true)}
+            variant={userRiskLevel ? 'outline' : 'default'}
+            className={userRiskLevel ? '' : 'bg-gradient-to-r from-blue-500 to-purple-500 text-white'}
+          >
+            {userRiskLevel ? 'Change Profile' : 'Take Assessment'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Risk Questionnaire Modal */}
+      {showRiskQuestionnaire && (
+        <RiskQuestionnaire
+          onComplete={(level) => {
+            setUserRiskLevel(level)
+            setShowRiskQuestionnaire(false)
+          }}
+          onClose={() => setShowRiskQuestionnaire(false)}
+          currentRisk={userRiskLevel || undefined}
+        />
+      )}
 
       <div className="grid md:grid-cols-3 gap-6">
         {pools.map((pool) => (
@@ -435,11 +514,10 @@ export default function PoolsPage() {
               </div>
               <div className="w-full bg-gray-800 rounded-full h-3">
                 <div
-                  className={`h-3 rounded-full transition-all duration-300 ${
-                    pool.isCapReached 
-                      ? 'bg-linear-to-r from-green-600 to-green-400' 
-                      : 'bg-linear-to-r from-blue-600 to-blue-400'
-                  }`}
+                  className={`h-3 rounded-full transition-all duration-300 ${pool.isCapReached
+                    ? 'bg-linear-to-r from-green-600 to-green-400'
+                    : 'bg-linear-to-r from-blue-600 to-blue-400'
+                    }`}
                   style={{ width: `${pool.progress}%` }}
                 />
               </div>
@@ -469,15 +547,15 @@ export default function PoolsPage() {
 
             {/* Show different buttons based on pool state */}
             {pool.status === 'Collecting' && !pool.isCapReached && (
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                 onClick={() => openModal(pool.id)}
               >
                 Join Pool
               </Button>
             )}
-            
+
             {pool.status === 'Collecting' && pool.isCapReached && (
               <div className="space-y-2">
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3 text-center animate-pulse">
@@ -490,13 +568,13 @@ export default function PoolsPage() {
                 </p>
               </div>
             )}
-            
+
             {pool.status === 'Earning Yield' && (
               <div className="space-y-2">
                 <div className={`${pool.risk === 'MEDIUM' ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-green-500/10 border-green-500/20'} border rounded-lg p-3 text-center`}>
                   <span className={`${pool.risk === 'MEDIUM' ? 'text-yellow-400' : 'text-green-400'} text-sm`}>
-                    {pool.adapterType === 'simulated' 
-                      ? `📊 Simulating ${pool.estimatedYield}% APY` 
+                    {pool.adapterType === 'simulated'
+                      ? `📊 Simulating ${pool.estimatedYield}% APY`
                       : `💰 Earning ${pool.estimatedYield}% APY on Aave`
                     }
                   </span>
@@ -508,14 +586,14 @@ export default function PoolsPage() {
                 )}
               </div>
             )}
-            
+
             {pool.status === 'Withdraw Open' && (
               <div className="space-y-3">
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 text-center">
                   <span className="text-purple-400 text-sm">🔓 Withdraw Available</span>
                 </div>
-                <Button 
-                  size="sm" 
+                <Button
+                  size="sm"
                   className="w-full bg-purple-600 hover:bg-purple-700 text-white"
                   onClick={() => openWithdrawModal(pool.id)}
                 >
@@ -523,10 +601,10 @@ export default function PoolsPage() {
                 </Button>
               </div>
             )}
-            
+
             {pool.status === 'Inactive' && (
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 className="w-full bg-gray-600 text-white cursor-not-allowed"
                 disabled
               >
@@ -540,10 +618,10 @@ export default function PoolsPage() {
       {selectedPool && (
         <div className="fixed inset-0 z-40 overflow-hidden">
           {/* Backdrop with blur effect that covers everything */}
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-md w-full h-full"
             onClick={closeModal}
-            style={{ 
+            style={{
               backdropFilter: 'blur(8px)',
               minHeight: '100vh',
               minWidth: '100vw',
@@ -554,10 +632,10 @@ export default function PoolsPage() {
               bottom: 0
             }}
           />
-          
+
           {/* Modal container */}
           <div className="relative z-50 flex items-center justify-center p-4 h-full overflow-y-auto"
-               style={{ minHeight: '100vh' }}>
+            style={{ minHeight: '100vh' }}>
             <div className="bg-card border border-gray-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between p-6 border-b border-gray-800">
                 <div>
@@ -583,7 +661,7 @@ export default function PoolsPage() {
               <div className="p-6 space-y-6">
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Funding</h3>
-                  
+
                   <div className="mb-4">
                     <label className="block text-sm font-medium text-gray-400 mb-2">
                       Funding Chain
@@ -610,7 +688,7 @@ export default function PoolsPage() {
                         </div>
                         <ChevronDown size={16} className={`transition-transform ${showChainDropdown ? 'rotate-180' : ''}`} />
                       </button>
-                      
+
                       {showChainDropdown && (
                         <div className="absolute top-full left-0 right-0 mt-1 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-10">
                           {chains.map((chain) => (
@@ -623,9 +701,8 @@ export default function PoolsPage() {
                                 }
                               }}
                               disabled={chain.disabled}
-                              className={`w-full flex items-center gap-3 p-3 text-left hover:bg-gray-700 transition-colors first:rounded-t-lg last:rounded-b-lg ${
-                                chain.disabled ? 'opacity-50 cursor-not-allowed' : ''
-                              } ${selectedChain === chain.id ? 'bg-gray-700' : ''}`}
+                              className={`w-full flex items-center gap-3 p-3 text-left hover:bg-gray-700 transition-colors first:rounded-t-lg last:rounded-b-lg ${chain.disabled ? 'opacity-50 cursor-not-allowed' : ''
+                                } ${selectedChain === chain.id ? 'bg-gray-700' : ''}`}
                             >
                               <div className="w-6 h-6 relative">
                                 <Image
@@ -801,7 +878,7 @@ export default function PoolsPage() {
       {/* Withdraw Modal */}
       {withdrawPool && (
         <div className="fixed inset-0 z-40 overflow-hidden">
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-md"
             onClick={closeWithdrawModal}
           />
@@ -813,22 +890,22 @@ export default function PoolsPage() {
               >
                 <X size={24} />
               </button>
-              
+
               <h2 className="text-2xl font-bold mb-4">Withdraw from Pool</h2>
-              
+
               <div className="space-y-4">
                 <div className="bg-gray-800 rounded-lg p-4">
                   <div className="text-sm text-gray-400 mb-1">Pool</div>
                   <div className="font-semibold">{getWithdrawPool()?.name}</div>
                 </div>
-                
+
                 <div className="bg-gray-800 rounded-lg p-4">
                   <div className="text-sm text-gray-400 mb-1">Available to Withdraw</div>
                   <div className="font-semibold text-2xl text-green-400">
                     {getWithdrawPool()?.currentAmount.toFixed(2)} USDC
                   </div>
                 </div>
-                
+
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
                   <h4 className="font-semibold text-purple-400 mb-2">Withdrawal Flow</h4>
                   <ol className="text-sm text-gray-300 space-y-1 list-decimal list-inside">

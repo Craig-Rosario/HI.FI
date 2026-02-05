@@ -1,5 +1,6 @@
 import hre from "hardhat";
 
+<<<<<<< Updated upstream
 /**
  * Deploy HI.FI Agentic Execution Layer
  * 
@@ -13,6 +14,8 @@ import hre from "hardhat";
  * Network: Base Sepolia
  */
 
+=======
+>>>>>>> Stashed changes
 async function main() {
     console.log("🚀 HI.FI Agentic Layer Deployment Started\n");
 
@@ -20,6 +23,7 @@ async function main() {
     console.log("Deployer:", deployer.address);
     console.log("Balance:", hre.ethers.formatEther(await hre.ethers.provider.getBalance(deployer.address)), "ETH\n");
 
+<<<<<<< Updated upstream
     // ===== ADDRESSES =====
     // Base Sepolia addresses
     const USDC_BASE_SEPOLIA = "0x036CbD53842c5426634e7929541eC2318f3dCF7e";
@@ -29,6 +33,10 @@ async function main() {
     // Uniswap v4 PoolManager on Base Sepolia
     // Note: Check https://docs.uniswap.org/contracts/v4/deployments for latest
     const V4_POOL_MANAGER = process.env.V4_POOL_MANAGER || "0x0000000000000000000000000000000000000000";
+=======
+    // ArcUSDC on Base Sepolia
+    const ARC_USDC_ADDRESS = "0x15C7881801F78ECFad935c137eD38B7F8316B5e8";
+>>>>>>> Stashed changes
 
     // ===== DEPLOY RISK POLICY REGISTRY =====
     console.log("📋 Deploying RiskPolicyRegistry...");
@@ -46,6 +54,7 @@ async function main() {
     const executorAddress = await executor.getAddress();
     console.log("✅ StrategyExecutor:", executorAddress);
 
+<<<<<<< Updated upstream
     // ===== DEPLOY V4 LIQUIDITY ADAPTER =====
     console.log("\n🔗 Deploying V4LiquidityAdapter...");
 
@@ -87,12 +96,18 @@ async function main() {
     // ===== DEPLOY POOL VAULT V3 =====
     console.log("\n🏦 Deploying PoolVaultV3...");
     const CAP = hre.ethers.parseUnits("100", 6); // 100 USDC for demo
+=======
+    // ===== DEPLOY POOL VAULT V3 =====
+    console.log("\n🏦 Deploying PoolVaultV3...");
+    const CAP = hre.ethers.parseUnits("15", 6); // 15 USDC for demo
+>>>>>>> Stashed changes
     const PoolVaultV3 = await hre.ethers.getContractFactory("PoolVaultV3");
     const vault = await PoolVaultV3.deploy(ARC_USDC_ADDRESS, CAP, executorAddress);
     await vault.waitForDeployment();
     const vaultAddress = await vault.getAddress();
     console.log("✅ PoolVaultV3:", vaultAddress);
 
+<<<<<<< Updated upstream
     // Authorize vault on executor
     await executor.setVaultAuthorization(vaultAddress, true);
     console.log("   Vault authorized on executor");
@@ -181,6 +196,56 @@ async function main() {
 
 main()
     .then(() => process.exit(0))
+=======
+    // ===== CONFIGURE =====
+    console.log("\n⚙️  Configuring...");
+
+    // Authorize vault on executor
+    const authTx = await executor.setVaultAuthorization(vaultAddress, true);
+    await authTx.wait();
+    console.log("   Vault authorized on executor");
+
+    // Register as pool owner in registry
+    const regTx = await registry.registerAsPoolOwner(vaultAddress);
+    await regTx.wait();
+    console.log("   Registered as pool owner");
+
+    // Set MEDIUM risk policy (30% v4 exposure)
+    const policyTx = await registry.setPoolRiskLevel(vaultAddress, 1); // 1 = MEDIUM
+    await policyTx.wait();
+    console.log("   Set MEDIUM risk policy (30% v4 max)");
+
+    // ===== SUMMARY =====
+    console.log("\n");
+    console.log("═".repeat(60));
+    console.log("                   DEPLOYMENT SUMMARY");
+    console.log("═".repeat(60));
+    console.log("");
+    console.log("  RiskPolicyRegistry:", registryAddress);
+    console.log("  StrategyExecutor:  ", executorAddress);
+    console.log("  PoolVaultV3:       ", vaultAddress);
+    console.log("");
+    console.log("  ArcUSDC:           ", ARC_USDC_ADDRESS);
+    console.log("  Cap:               ", "50 USDC");
+    console.log("  Risk Policy:       ", "MEDIUM (30% max v4 exposure)");
+    console.log("");
+    console.log("═".repeat(60));
+    console.log("  🎉 Agentic Layer deployed successfully!");
+    console.log("═".repeat(60));
+    console.log("");
+
+    console.log("\n📝 Add these to your .env:");
+    console.log(`NEXT_PUBLIC_REGISTRY_ADDRESS=${registryAddress}`);
+    console.log(`NEXT_PUBLIC_EXECUTOR_ADDRESS=${executorAddress}`);
+    console.log(`NEXT_PUBLIC_POOL_VAULT_V3_ADDRESS=${vaultAddress}`);
+}
+
+main()
+    .then(() => {
+        console.log("\n🎉 Deployment completed!");
+        process.exit(0);
+    })
+>>>>>>> Stashed changes
     .catch((error) => {
         console.error("❌ Deployment failed:", error);
         process.exit(1);

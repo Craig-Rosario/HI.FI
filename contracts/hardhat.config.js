@@ -29,9 +29,13 @@ export default {
       url: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
       accounts: process.env.PRIVATE_KEY
         ? [process.env.PRIVATE_KEY]
+<<<<<<< Updated upstream
         : process.env.BASE_SEPOLIA_PRIVATE_KEY
           ? [process.env.BASE_SEPOLIA_PRIVATE_KEY]
           : []
+=======
+        : []
+>>>>>>> Stashed changes
     }
   }
 };

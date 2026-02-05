@@ -2,6 +2,7 @@
 pragma solidity ^0.8.28;
 
 /**
+<<<<<<< Updated upstream
  * @title RiskPolicyRegistry - HI.FI Risk Policy Storage
  * @notice Stores user/pool risk preferences that govern StrategyExecutor decisions
  * @dev Risk levels determine maximum Uniswap v4 exposure and other constraints
@@ -228,5 +229,92 @@ contract RiskPolicyRegistry {
                 setAt: block.timestamp
             });
         }
+=======
+ * @title RiskPolicyRegistry
+ * @notice Stores risk policies for pools - enables deterministic, onchain risk enforcement
+ */
+contract RiskPolicyRegistry {
+    
+    enum RiskLevel { LOW, MEDIUM, HIGH }
+    
+    struct RiskPolicy {
+        RiskLevel level;
+        uint256 maxV4AllocationBps;  // Max % to Uniswap v4 (basis points)
+        uint256 maxSlippageBps;       // Max slippage allowed
+        bool allowSwaps;              // Allow swap operations
+        bool isSet;
+    }
+    
+    // Pool address => RiskPolicy
+    mapping(address => RiskPolicy) public poolPolicies;
+    
+    // Pool address => Owner who can modify policy
+    mapping(address => address) public poolOwners;
+    
+    // Preset policies for each risk level
+    mapping(RiskLevel => RiskPolicy) public presetPolicies;
+    
+    event PolicySet(address indexed pool, RiskLevel level);
+    event PoolOwnerRegistered(address indexed pool, address indexed owner);
+    
+    constructor() {
+        // LOW risk: 0% v4 exposure, no swaps
+        presetPolicies[RiskLevel.LOW] = RiskPolicy({
+            level: RiskLevel.LOW,
+            maxV4AllocationBps: 0,
+            maxSlippageBps: 50,
+            allowSwaps: false,
+            isSet: true
+        });
+        
+        // MEDIUM risk: 30% v4 exposure
+        presetPolicies[RiskLevel.MEDIUM] = RiskPolicy({
+            level: RiskLevel.MEDIUM,
+            maxV4AllocationBps: 3000,
+            maxSlippageBps: 100,
+            allowSwaps: true,
+            isSet: true
+        });
+        
+        // HIGH risk: 70% v4 exposure
+        presetPolicies[RiskLevel.HIGH] = RiskPolicy({
+            level: RiskLevel.HIGH,
+            maxV4AllocationBps: 7000,
+            maxSlippageBps: 300,
+            allowSwaps: true,
+            isSet: true
+        });
+    }
+    
+    function registerAsPoolOwner(address pool) external {
+        require(poolOwners[pool] == address(0), "Pool already has owner");
+        poolOwners[pool] = msg.sender;
+        emit PoolOwnerRegistered(pool, msg.sender);
+    }
+    
+    function setPoolRiskLevel(address pool, RiskLevel level) external {
+        require(poolOwners[pool] == msg.sender, "Not pool owner");
+        
+        RiskPolicy memory preset = presetPolicies[level];
+        poolPolicies[pool] = preset;
+        
+        emit PolicySet(pool, level);
+    }
+    
+    function getPolicy(address pool) external view returns (RiskPolicy memory) {
+        RiskPolicy memory policy = poolPolicies[pool];
+        if (!policy.isSet) {
+            return presetPolicies[RiskLevel.LOW]; // Default to LOW
+        }
+        return policy;
+    }
+    
+    function getMaxV4Allocation(address pool) external view returns (uint256) {
+        RiskPolicy memory policy = poolPolicies[pool];
+        if (!policy.isSet) {
+            return 0;
+        }
+        return policy.maxV4AllocationBps;
+>>>>>>> Stashed changes
     }
 }
