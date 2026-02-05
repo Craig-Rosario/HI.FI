@@ -268,11 +268,3 @@ npx hardhat run scripts/deploy-v4-agentic.js --network base-sepolia
 Built with ❤️ for ETHGlobal
 
 ---
-
-## 📜 License
-
-MIT
-
----
-
-**HI.FI** — Where users set the rules, and agents follow them.
