@@ -12,9 +12,11 @@ interface InvestmentProgressModalProps {
   txHash?: string;
   error?: string;
   amount: string;
+  sourceChain?: 'ethereum' | 'base';
 }
 
-const STEP_ORDER: InvestmentStep[] = [
+// Steps for Ethereum → Base bridge flow
+const ETH_STEP_ORDER: InvestmentStep[] = [
   'connecting',
   'switching_to_eth',
   'checking_balance',
@@ -29,9 +31,21 @@ const STEP_ORDER: InvestmentStep[] = [
   'complete',
 ];
 
+// Steps for Base direct deposit flow (no bridge)
+const BASE_STEP_ORDER: InvestmentStep[] = [
+  'connecting',
+  'switching_to_source',
+  'checking_balance',
+  'wrapping_arcusdc',
+  'approving_arcusdc',
+  'depositing_vault',
+  'complete',
+];
+
 const STEP_LABELS: Record<InvestmentStep, string> = {
   idle: 'Idle',
   connecting: 'Connect Wallet',
+  switching_to_source: 'Switch to Base Sepolia',
   switching_to_eth: 'Switch to Ethereum Sepolia',
   checking_balance: 'Check Balance',
   approving_usdc: 'Approve USDC',
@@ -54,9 +68,13 @@ export function InvestmentProgressModal({
   txHash,
   error,
   amount,
+  sourceChain = 'ethereum',
 }: InvestmentProgressModalProps) {
   if (!isOpen) return null;
 
+  // Select the appropriate step order based on source chain
+  const STEP_ORDER = sourceChain === 'base' ? BASE_STEP_ORDER : ETH_STEP_ORDER;
+  
   const currentStepIndex = STEP_ORDER.indexOf(step);
   const isComplete = step === 'complete';
   const isError = step === 'error';

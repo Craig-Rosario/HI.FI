@@ -17,6 +17,14 @@ const GATEWAY_MINTER = '0x0022222ABE238Cc2C7Bb1f21003F0a260052475B';
 const USDC_SEPOLIA = '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238';
 const USDC_BASE_SEPOLIA = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 
+// USDC addresses by chain - used to determine source/destination tokens
+const USDC_BY_CHAIN: Record<string, string> = {
+  ethereum: USDC_SEPOLIA,
+  sepolia: USDC_SEPOLIA,
+  base: USDC_BASE_SEPOLIA,
+  baseSepolia: USDC_BASE_SEPOLIA,
+};
+
 // EIP-712 typed data for burn intent
 const EIP712_DOMAIN = { name: 'GatewayWallet', version: '1' };
 
@@ -62,6 +70,10 @@ export async function GET(request: NextRequest) {
     const sourceDomain = DOMAINS[sourceChain as keyof typeof DOMAINS] ?? 0;
     const destDomain = DOMAINS[destinationChain as keyof typeof DOMAINS] ?? 6;
 
+    // Determine source and destination USDC tokens based on chains
+    const sourceToken = USDC_BY_CHAIN[sourceChain] || USDC_SEPOLIA;
+    const destToken = USDC_BY_CHAIN[destinationChain] || USDC_BASE_SEPOLIA;
+
     // maxBlockHeight needs to be a very large number (at least 7 days in the future in blocks)
     // Using a large decimal string instead of hex
     const maxBlockHeight = '115792089237316195423570985008687907853269984665640564039457584007913129639935';
@@ -75,8 +87,8 @@ export async function GET(request: NextRequest) {
         destinationDomain: destDomain,
         sourceContract: addressToBytes32(GATEWAY_WALLET),
         destinationContract: addressToBytes32(GATEWAY_MINTER),
-        sourceToken: addressToBytes32(USDC_SEPOLIA),
-        destinationToken: addressToBytes32(USDC_BASE_SEPOLIA),
+        sourceToken: addressToBytes32(sourceToken),
+        destinationToken: addressToBytes32(destToken),
         sourceDepositor: addressToBytes32(userAddress),
         destinationRecipient: addressToBytes32(userAddress),
         sourceSigner: addressToBytes32(userAddress),
