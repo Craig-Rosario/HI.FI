@@ -469,6 +469,21 @@ export const useInvest = (): UseInvestReturn => {
         }),
       });
 
+      // Record transaction for transactions tab
+      await fetch('/api/transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress,
+          poolId,
+          type: 'deposit',
+          chain: 'ETH',
+          amount: ethers.formatUnits(depositAmount, 6),
+          txHash: vaultDepositTx.hash,
+          status: 'confirmed',
+        }),
+      });
+
       } else {
         // ===== BASE DIRECT DEPOSIT FLOW (no bridging) =====
         
@@ -563,6 +578,21 @@ export const useInvest = (): UseInvestReturn => {
             txHash: vaultDepositTx.hash,
             inputAmount: inputAmount.toString(), // Original input amount
             bridgeFee: '0', // No bridge fee for direct deposit
+          }),
+        });
+
+        // Record transaction for transactions tab
+        await fetch('/api/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress,
+            poolId,
+            type: 'deposit',
+            chain: 'BASE',
+            amount: ethers.formatUnits(depositAmount, 6),
+            txHash: vaultDepositTx.hash,
+            status: 'confirmed',
           }),
         });
       }

@@ -306,9 +306,11 @@ export default function PoolsPage() {
       }
       
       // Preview how much user will receive (including yield)
+      let withdrawAmount = userShares
       try {
         const previewAmount = await vault.previewWithdraw(userAddr)
         console.log(`Withdrawing ${ethers.formatUnits(previewAmount, 6)} USDC (including yield)`)
+        withdrawAmount = previewAmount
       } catch {
         // Old contract might not have this
       }
@@ -316,6 +318,25 @@ export default function PoolsPage() {
       // Withdraw shares (contract handles Aave withdrawal + wrapping to arcUSDC)
       const withdrawTx = await vault.withdraw(userShares)
       await withdrawTx.wait()
+      
+      // Record withdrawal transaction
+      try {
+        await fetch('/api/transactions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userAddress: userAddr,
+            poolId: pool.id,
+            type: 'withdrawal',
+            chain: 'BASE',
+            amount: ethers.formatUnits(withdrawAmount, 6),
+            txHash: withdrawTx.hash,
+            status: 'confirmed',
+          }),
+        })
+      } catch (txError) {
+        console.warn('Failed to record withdrawal transaction:', txError)
+      }
       
       // Now unwrap arcUSDC to USDC (user receives arcUSDC from vault)
       const arcUsdcAddress = process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS
