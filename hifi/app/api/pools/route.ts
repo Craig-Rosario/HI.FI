@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import connectToDatabase from '@/lib/mongodb';
 import Pool from '@/models/Pool';
 
-// ABI for reading vault state (supports both Aave and Medium Risk contracts)
+// ABI for reading vault state (supports Aave, Medium Risk, and V2 pool contracts)
 const POOL_VAULT_ABI = [
   'function state() external view returns (uint8)',
   'function cap() external view returns (uint256)',
@@ -15,9 +15,17 @@ const POOL_VAULT_ABI = [
   'function timeUntilWithdraw() external view returns (uint256)',
   'function totalAssetsDeployed() external view returns (uint256)',
   'function yieldEarned() external view returns (uint256)',
-  // Medium Risk specific
+  // Medium Risk and V2 pools specific
   'function currentPnL() external view returns (int256)',
   'function deployedAssets() external view returns (uint256)',
+  // V2 pools additional functions
+  'function treasury() external view returns (address)',
+  'function accumulatedPnL() external view returns (int256)',
+  'function accumulatedYield() external view returns (uint256)',
+  'function getMinutesElapsed() external view returns (uint256)',
+  // High risk pool specific
+  'function getSentiment() external view returns (string)',
+  'function getMaxLossPercent() external view returns (uint256)',
 ];
 
 const ARC_USDC_ABI = [
