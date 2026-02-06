@@ -49,6 +49,11 @@ export interface ActionResult {
   error?: string;
 }
 
+export interface PoolInfo {
+  poolId: string;
+  poolContractAddress?: string;
+}
+
 export interface UseVaultActionsReturn {
   // State
   actionState: ActionState;
@@ -58,8 +63,8 @@ export interface UseVaultActionsReturn {
   
   // Actions
   deployToAave: () => Promise<ActionResult>;
-  withdraw: (shareAmount?: bigint) => Promise<ActionResult>;
-  withdrawAll: () => Promise<ActionResult>;
+  withdraw: (shareAmount?: bigint, poolInfo?: PoolInfo) => Promise<ActionResult>;
+  withdrawAll: (poolInfo?: PoolInfo) => Promise<ActionResult>;
   openWithdrawWindow: (durationSeconds: number) => Promise<ActionResult>;
   
   // Reset
@@ -173,8 +178,8 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
    * Withdraw shares
    * Validates on-chain that withdrawal is allowed
    */
-  const withdraw = useCallback(async (shareAmount?: bigint): Promise<ActionResult> => {
-    const addresses = getAddresses();
+  const withdraw = useCallback(async (shareAmount?: bigint, poolInfo?: PoolInfo): Promise<ActionResult> => {
+    const addresses = getAddresses(poolInfo?.poolContractAddress);
     
     try {
       reset();
@@ -223,6 +228,27 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
 
       setActionState('success');
       setActionMessage('Withdrawal complete!');
+
+      // Record withdrawal transaction if poolInfo is provided
+      if (poolInfo?.poolId) {
+        try {
+          await fetch('/api/transactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              poolId: poolInfo.poolId,
+              type: 'withdrawal',
+              chain: 'BASE',
+              amount: ethers.formatUnits(amountToWithdraw, 6),
+              txHash: tx.hash,
+              status: 'confirmed',
+            }),
+          });
+        } catch (txError) {
+          console.warn('Failed to record withdrawal transaction:', txError);
+        }
+      }
       
       onSuccess?.();
       
@@ -241,8 +267,8 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
   /**
    * Withdraw all shares
    */
-  const withdrawAll = useCallback(async (): Promise<ActionResult> => {
-    const addresses = getAddresses();
+  const withdrawAll = useCallback(async (poolInfo?: PoolInfo): Promise<ActionResult> => {
+    const addresses = getAddresses(poolInfo?.poolContractAddress);
     
     try {
       reset();
@@ -292,6 +318,27 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
 
       setActionState('success');
       setActionMessage('All funds withdrawn!');
+
+      // Record withdrawal transaction if poolInfo is provided
+      if (poolInfo?.poolId) {
+        try {
+          await fetch('/api/transactions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userAddress,
+              poolId: poolInfo.poolId,
+              type: 'withdrawal',
+              chain: 'BASE',
+              amount: ethers.formatUnits(userShares, 6),
+              txHash: tx.hash,
+              status: 'confirmed',
+            }),
+          });
+        } catch (txError) {
+          console.warn('Failed to record withdrawal transaction:', txError);
+        }
+      }
       
       onSuccess?.();
       
