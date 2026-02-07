@@ -311,22 +311,24 @@ export async function executeCircleTransaction(
       txHash,
       state,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('\n========================================');
     console.error('CIRCLE TRANSACTION ERROR');
     console.error('========================================');
-    console.error('Error type:', error?.constructor?.name);
-    console.error('Error message:', error?.message);
+    const err = error as Record<string, unknown>;
+    console.error('Error type:', err?.constructor?.name);
+    console.error('Error message:', (err as { message?: string })?.message);
     
     // Try to extract detailed error info from Circle API response
-    if (error?.response) {
-      console.error('Response status:', error.response.status);
-      console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+    const errResponse = err?.response as Record<string, unknown> | undefined;
+    if (errResponse) {
+      console.error('Response status:', errResponse.status);
+      console.error('Response data:', JSON.stringify(errResponse.data, null, 2));
     }
     
     // Check for specific error types
-    if (error?.code) {
-      console.error('Error code:', error.code);
+    if (err?.code) {
+      console.error('Error code:', err.code);
     }
     
     console.error('Full error:', error);
@@ -334,10 +336,11 @@ export async function executeCircleTransaction(
     
     // Format error message for user
     let errorMessage = 'Unknown Circle API error';
-    if (error?.response?.data?.message) {
-      errorMessage = error.response.data.message;
-    } else if (error?.message) {
-      errorMessage = error.message;
+    const errData = errResponse?.data as Record<string, unknown> | undefined;
+    if (errData?.message) {
+      errorMessage = errData.message as string;
+    } else if ((err as { message?: string })?.message) {
+      errorMessage = (err as { message?: string }).message!;
     }
     
     return {

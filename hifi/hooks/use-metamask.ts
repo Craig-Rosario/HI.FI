@@ -164,7 +164,7 @@ export const useMetaMask = (): UseMetaMaskReturn => {
       const redirectUrl = redirectTo || '/user/dashboard';
       router.push(redirectUrl);
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error connecting wallet:', error);
       
       const metamaskError = error as MetaMaskError;

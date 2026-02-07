@@ -202,8 +202,6 @@ export function useVaultState(userAddress?: string, userId?: string): UseVaultSt
         }
       }
 
-      const state = Number(stateRaw) as VaultState;
-
       // Read TVL based on state
       // When COLLECTING, use arcUSDC.balanceOf(vault)
       // When DEPLOYED, use vault's totalAssets (which reads aToken balance)
