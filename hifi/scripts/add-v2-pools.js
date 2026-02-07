@@ -52,12 +52,12 @@ async function addV2Pools() {
     const v2Pools = [
       {
         name: 'Easy Pool V2',
-        description: 'Low risk treasury-funded yield. Guaranteed 0.3% per minute return with no downside risk. Perfect for conservative investors in demo environment.',
+        description: 'Low risk treasury-funded yield. Guaranteed 0.3% per minute return with no downside risk. Perfect for conservative investors in demo environment. 1 minute withdrawal window.',
         state: 'COLLECTING',
         tvl: '0',
         cap: '10', // 10 USDC threshold for testing
         apy: '0.3', // 0.3% per minute (displayed for info)
-        waitTime: 60, // 1 minute wait time
+        waitTime: 60, // 1 minute withdrawal window
         minDeposit: 0.1, // 0.1 USDC minimum
         contractAddress: easyPoolV2Address,
         chainId: 84532, // Base Sepolia
@@ -66,12 +66,12 @@ async function addV2Pools() {
       },
       {
         name: 'Medium Pool V2',
-        description: 'Variable yield with moderate risk. Returns range from -0.2% to +0.5% per minute based on simulated market conditions. Some risk of loss.',
+        description: 'Variable yield with moderate risk. Returns range from -0.2% to +0.5% per minute based on simulated market conditions. 5 minute withdrawal window.',
         state: 'COLLECTING',
         tvl: '0',
         cap: '10',
         apy: '0.4', // Base rate 0.4% per minute
-        waitTime: 60,
+        waitTime: 300, // 5 minute withdrawal window
         minDeposit: 0.1,
         contractAddress: mediumPoolV2Address,
         chainId: 84532,
@@ -80,12 +80,12 @@ async function addV2Pools() {
       },
       {
         name: 'High Risk Pool',
-        description: 'High volatility trading simulation. Returns range from -0.5% to +1.0% per minute with market sentiment momentum. Significant risk of loss up to 50%.',
+        description: 'High volatility trading simulation. Returns range from -0.5% to +1.0% per minute with market sentiment momentum. 10 minute withdrawal window. Significant risk of loss up to 50%.',
         state: 'COLLECTING',
         tvl: '0',
         cap: '10',
         apy: '0.25', // Base rate 0.25% per minute
-        waitTime: 60,
+        waitTime: 600, // 10 minute withdrawal window
         minDeposit: 0.1,
         contractAddress: highRiskPoolAddress,
         chainId: 84532,

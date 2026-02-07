@@ -2,10 +2,25 @@ import connectToDatabase from "./mongodb";
 import User from "@/models/User";
 import { CircleDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 
-const circle = new CircleDeveloperControlledWalletsClient({
-  apiKey: process.env.CIRCLE_API_KEY!,
-  entitySecret: process.env.CIRCLE_ENTITY_SECRET!,
-});
+// Initialize Circle client lazily
+let circleClient: CircleDeveloperControlledWalletsClient | null = null;
+
+function getCircleClient(): CircleDeveloperControlledWalletsClient {
+  if (!circleClient) {
+    if (!process.env.CIRCLE_API_KEY) {
+      throw new Error('CIRCLE_API_KEY environment variable is not set');
+    }
+    if (!process.env.CIRCLE_ENTITY_SECRET) {
+      throw new Error('CIRCLE_ENTITY_SECRET environment variable is not set');
+    }
+    
+    circleClient = new CircleDeveloperControlledWalletsClient({
+      apiKey: process.env.CIRCLE_API_KEY,
+      entitySecret: process.env.CIRCLE_ENTITY_SECRET,
+    });
+  }
+  return circleClient;
+}
 
 export async function getOrCreateCircleWallet(userId: string) {
   await connectToDatabase();
@@ -20,13 +35,16 @@ export async function getOrCreateCircleWallet(userId: string) {
     };
   }
 
+  const circle = getCircleClient();
+  
   const walletSetId = process.env.CIRCLE_WALLET_SET_ID!;
   if (!walletSetId) throw new Error("Missing CIRCLE_WALLET_SET_ID");
 
+  // Create wallet on Base Sepolia for the DeFi pools
   const response = await circle.createWallets({
     walletSetId,
     accountType: "SCA",
-    blockchains: ["MATIC-AMOY"],
+    blockchains: ["BASE-SEPOLIA"],
     count: 1,
   });
 

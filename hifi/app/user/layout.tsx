@@ -2,6 +2,8 @@
 
 import React from "react"
 import { ProtectedRoute, useAuth } from '@/contexts/AuthContext'
+import { HiFiBotProvider } from '@/contexts/HiFiBotContext'
+import { HiFiBotSidebar, HiFiBotButton } from '@/components/hifi-bot'
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -32,6 +34,7 @@ export default function AppLayout({
 
   return (
     <ProtectedRoute>
+    <HiFiBotProvider userId={user?._id || ''} walletAddress={user?.walletAddress || ''}>
     <div className="flex h-screen bg-background text-foreground overflow-hidden dark">
       <div
         className={`fixed md:relative inset-y-0 left-0 z-40 bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out ${
@@ -147,7 +150,12 @@ export default function AppLayout({
           {children}
         </main>
       </div>
+
+      {/* HI.FI BOT Sidebar and Button */}
+      <HiFiBotSidebar />
+      <HiFiBotButton />
     </div>
+    </HiFiBotProvider>
     </ProtectedRoute>
   )
 }

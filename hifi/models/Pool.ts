@@ -55,7 +55,7 @@ const PoolSchema = new mongoose.Schema<IPool>({
   waitTime: {
     type: Number,
     required: true,
-    default: 420, // 7 minutes default
+    default: 60, // 1 minute default withdrawal window
   },
   minDeposit: {
     type: Number,

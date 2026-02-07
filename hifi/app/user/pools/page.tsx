@@ -1,11 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown } from 'lucide-react'
+import { TrendingUp, Users, Lock, ArrowUpRight, X, ChevronDown, Bot, Wallet } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import Image from 'next/image'
 import { IPool } from '@/models/Pool'
-import { useInvest, SourceChain } from '@/hooks/use-invest'
+import { useInvest, SourceChain, InvestmentStep } from '@/hooks/use-invest'
+import { useCircleInvest } from '@/hooks/use-circle-invest'
 import { InvestmentProgressModal } from '@/components/investment-progress-modal'
 
 // Type for the UI pool with additional display properties
@@ -100,8 +101,15 @@ export default function PoolsPage() {
   const [withdrawing, setWithdrawing] = useState(false)
   const [userAddress, setUserAddress] = useState<string | null>(null)
   const [userShares, setUserShares] = useState<Record<string, string>>({})
-  // Investment hook
+  const [investMode, setInvestMode] = useState<'metamask' | 'circle'>('metamask')
+  const [circleWalletBalance, setCircleWalletBalance] = useState<number>(0)
+  const [circleWalletAddress, setCircleWalletAddress] = useState<string | null>(null)
+  const [circleWalletHasGas, setCircleWalletHasGas] = useState<boolean>(false)
+  const [circleWalletEthBalance, setCircleWalletEthBalance] = useState<string>('0')
+  
+  // Investment hooks
   const { state: investState, invest, reset: resetInvest } = useInvest()
+  const { state: circleInvestState, invest: circleInvest, reset: resetCircleInvest, isLoading: circleLoading } = useCircleInvest()
 
   // Get user wallet address
   useEffect(() => {
@@ -118,6 +126,34 @@ export default function PoolsPage() {
       }
     }
     getAddress()
+  }, [])
+
+  // Fetch Circle wallet info
+  useEffect(() => {
+    const fetchCircleWallet = async () => {
+      try {
+        const authResponse = await fetch('/api/auth/session')
+        const authData = await authResponse.json()
+        if (!authData.user?.id) return
+        
+        const response = await fetch(`/api/circle-wallet/info?userId=${authData.user.id}`)
+        const data = await response.json()
+        
+        if (data.success && data.wallet) {
+          setCircleWalletAddress(data.wallet.address)
+          setCircleWalletHasGas(data.wallet.hasGas ?? false)
+          setCircleWalletEthBalance(data.wallet.ethBalance || '0')
+          // Find USDC balance
+          const usdcBalance = data.wallet.balances?.find((b: any) => 
+            b.token === 'USDC' || b.token?.toUpperCase().includes('USDC')
+          )
+          setCircleWalletBalance(usdcBalance ? parseFloat(usdcBalance.amount) : 0)
+        }
+      } catch (err) {
+        console.error('Failed to fetch Circle wallet:', err)
+      }
+    }
+    fetchCircleWallet()
   }, [])
 
   // Fetch pools from API
@@ -196,7 +232,7 @@ export default function PoolsPage() {
   const chainInfo = CHAIN_INFO[selectedChain] || CHAIN_INFO.ethereum
   const bridgeFee = chainInfo.bridgeFee
   const protocolFee = investAmount ? parseFloat(investAmount) * 0.005 : 0 // 0.5% fee
-  const totalFees = protocolFee + bridgeFee
+  const totalFees = investMode === 'circle' ? protocolFee : protocolFee + bridgeFee // No bridge fee for Circle
   const netInvested = investAmount ? parseFloat(investAmount) - totalFees : 0
 
   const openModal = (poolId: string) => {
@@ -224,15 +260,52 @@ export default function PoolsPage() {
     closeModal()
     setShowProgressModal(true)
     
-    // Start the investment flow with the pool-specific contract address and selected chain
-    await invest(investAmount, selectedPool, poolContractAddress, selectedChain as SourceChain)
+    if (investMode === 'circle') {
+      // Use Circle wallet - AI-managed, no MetaMask signatures needed
+      const success = await circleInvest(investAmount, selectedPool, poolContractAddress)
+      if (success) {
+        // Refresh pools after investment
+        const poolsResponse = await fetch('/api/pools')
+        const poolsData = await poolsResponse.json()
+        if (poolsData.success) {
+          setPools(poolsData.data.map(convertPoolToUIPool))
+        }
+      }
+    } else {
+      // Use MetaMask - manual signatures required
+      await invest(investAmount, selectedPool, poolContractAddress, selectedChain as SourceChain)
+    }
   }
 
   const handleCloseProgressModal = () => {
     setShowProgressModal(false)
     resetInvest()
+    resetCircleInvest()
     setInvestAmount('')
   }
+
+  // Map Circle steps to InvestmentStep for the progress modal
+  const mapCircleStepToInvestStep = (circleStep: string): InvestmentStep => {
+    const stepMap: Record<string, InvestmentStep> = {
+      'idle': 'idle',
+      'checking_wallet': 'checking_balance',
+      'approving_usdc': 'approving_usdc',
+      'wrapping_arcusdc': 'wrapping_arcusdc',
+      'approving_arcusdc': 'approving_arcusdc',
+      'depositing_vault': 'depositing_vault',
+      'complete': 'complete',
+      'error': 'error',
+    }
+    return stepMap[circleStep] || 'idle'
+  }
+
+  // Get the current state based on invest mode
+  const currentInvestState = investMode === 'circle' ? {
+    step: mapCircleStepToInvestStep(circleInvestState.step),
+    message: circleInvestState.message,
+    txHash: circleInvestState.txHash,
+    error: circleInvestState.error,
+  } : investState
 
   // Open withdraw modal
   const openWithdrawModal = (poolId: string) => {
@@ -612,6 +685,87 @@ export default function PoolsPage() {
 
               <div className="p-6 space-y-6">
                 <div>
+                  <h3 className="text-lg font-semibold mb-4">Wallet Mode</h3>
+                  
+                  {/* Wallet Mode Selector */}
+                  <div className="grid grid-cols-2 gap-3 mb-4">
+                    <button
+                      onClick={() => setInvestMode('metamask')}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                        investMode === 'metamask'
+                          ? 'border-orange-500 bg-orange-500/10'
+                          : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                      }`}
+                    >
+                      <Wallet className={`w-5 h-5 ${investMode === 'metamask' ? 'text-orange-400' : 'text-gray-400'}`} />
+                      <div className="text-left">
+                        <p className={`font-medium text-sm ${investMode === 'metamask' ? 'text-orange-400' : 'text-white'}`}>
+                          MetaMask
+                        </p>
+                        <p className="text-xs text-gray-400">Manual signing</p>
+                      </div>
+                    </button>
+                    
+                    <button
+                      onClick={() => setInvestMode('circle')}
+                      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                        investMode === 'circle'
+                          ? 'border-purple-500 bg-purple-500/10'
+                          : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                      }`}
+                    >
+                      <Bot className={`w-5 h-5 ${investMode === 'circle' ? 'text-purple-400' : 'text-gray-400'}`} />
+                      <div className="text-left">
+                        <p className={`font-medium text-sm ${investMode === 'circle' ? 'text-purple-400' : 'text-white'}`}>
+                          Circle Wallet
+                        </p>
+                        <p className="text-xs text-gray-400">AI-managed</p>
+                      </div>
+                    </button>
+                  </div>
+                  
+                  {investMode === 'circle' && (
+                    <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-3 mb-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Bot className="w-4 h-4 text-purple-400" />
+                        <span className="text-sm font-medium text-purple-400">Circle Wallet</span>
+                      </div>
+                      <p className="text-xs text-gray-300 mb-2">
+                        {circleWalletAddress 
+                          ? `Address: ${circleWalletAddress.slice(0, 6)}...${circleWalletAddress.slice(-4)}`
+                          : 'No wallet connected'
+                        }
+                      </p>
+                      <div className="flex gap-4 text-sm text-white mb-2">
+                        <span>USDC: <span className="font-semibold text-purple-400">{circleWalletBalance.toFixed(2)}</span></span>
+                        <span>ETH: <span className={`font-semibold ${circleWalletHasGas ? 'text-green-400' : 'text-red-400'}`}>{circleWalletEthBalance}</span></span>
+                      </div>
+                      
+                      {!circleWalletHasGas && (
+                        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-2 mb-2">
+                          <p className="text-xs text-red-400">
+                            ⚠️ <strong>Insufficient ETH for gas!</strong> Send ~0.001 ETH to your Circle wallet to enable transactions.
+                          </p>
+                          {circleWalletAddress && (
+                            <p className="text-xs text-gray-400 mt-1 font-mono">
+                              {circleWalletAddress}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      
+                      <p className="text-xs text-gray-400">
+                        {circleWalletHasGas 
+                          ? '✨ Ready for AI-managed execution - no MetaMask signatures needed'
+                          : '⏳ Fund gas to enable AI-managed execution'
+                        }
+                      </p>
+                    </div>
+                  )}
+                </div>
+                
+                {investMode === 'metamask' && (
+                <div>
                   <h3 className="text-lg font-semibold mb-4">Funding</h3>
                   
                   <div className="mb-4">
@@ -680,12 +834,13 @@ export default function PoolsPage() {
                     </p>
                   </div>
                 </div>
+                )}
 
                 <div>
                   <h3 className="text-lg font-semibold mb-4">Amount</h3>
                   <div>
                     <label className="block text-sm font-medium text-gray-400 mb-2">
-                      Amount to invest (USDC on {getSelectedChain()?.name})
+                      Amount to invest {investMode === 'circle' ? '(USDC from Circle Wallet)' : `(USDC on ${getSelectedChain()?.name})`}
                     </label>
                     <div className="relative">
                       <input
@@ -697,7 +852,11 @@ export default function PoolsPage() {
                       />
                       <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                         <button
-                          onClick={() => setInvestAmount(getSelectedChain()?.balance.toString() || '0')}
+                          onClick={() => setInvestAmount(
+                            investMode === 'circle' 
+                              ? circleWalletBalance.toString() 
+                              : (getSelectedChain()?.balance.toString() || '0')
+                          )}
                           className="text-xs text-blue-400 hover:text-blue-300 font-medium"
                         >
                           MAX
@@ -707,14 +866,14 @@ export default function PoolsPage() {
                     </div>
                     <div className="flex justify-between text-sm text-gray-400 mt-2">
                       <span>Min: {getCurrentPool()?.minDeposit} USDC</span>
-                      <span>Max: {getSelectedChain()?.balance.toLocaleString()} USDC</span>
+                      <span>Max: {investMode === 'circle' ? circleWalletBalance.toFixed(2) : getSelectedChain()?.balance.toLocaleString()} USDC</span>
                     </div>
                     {investAmount && (
-                      <div className="mt-3 p-3 bg-blue-500/10 border border-blue-500/20 rounded-lg">
+                      <div className={`mt-3 p-3 ${investMode === 'circle' ? 'bg-purple-500/10 border-purple-500/20' : 'bg-blue-500/10 border-blue-500/20'} border rounded-lg`}>
                         <p className="text-sm">
                           <span className="text-gray-400">You will invest: </span>
-                          <span className="font-semibold text-blue-400">
-                            {parseFloat(investAmount).toLocaleString()} USDC on {getSelectedChain()?.name}
+                          <span className={`font-semibold ${investMode === 'circle' ? 'text-purple-400' : 'text-blue-400'}`}>
+                            {parseFloat(investAmount).toLocaleString()} USDC {investMode === 'circle' ? 'via Circle Wallet' : `on ${getSelectedChain()?.name}`}
                           </span>
                         </p>
                       </div>
@@ -734,7 +893,7 @@ export default function PoolsPage() {
                         <span className="text-gray-400">Protocol fee (0.5%)</span>
                         <span className="font-medium">{protocolFee.toFixed(2)} USDC</span>
                       </div>
-                      {bridgeFee > 0 && (
+                      {investMode === 'metamask' && bridgeFee > 0 && (
                         <div className="flex justify-between">
                           <span className="text-gray-400">Bridge fee (CCTP)</span>
                           <span className="font-medium">{bridgeFee.toFixed(2)} USDC</span>
@@ -745,7 +904,10 @@ export default function PoolsPage() {
                         <span>Net invested</span>
                         <span className="text-green-400">{netInvested.toFixed(2)} USDC</span>
                       </div>
-                      {selectedChain === 'base' && (
+                      {investMode === 'circle' && (
+                        <p className="text-xs text-purple-400">✨ AI-managed execution - no signatures required</p>
+                      )}
+                      {investMode === 'metamask' && selectedChain === 'base' && (
                         <p className="text-xs text-green-400">✓ No bridge fees - depositing directly on Base</p>
                       )}
                     </div>
@@ -758,6 +920,12 @@ export default function PoolsPage() {
                     <div className="flex justify-between">
                       <span className="text-gray-400">Execution chain</span>
                       <span className="font-medium">Base Sepolia</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-400">Wallet mode</span>
+                      <span className={`font-medium ${investMode === 'circle' ? 'text-purple-400' : 'text-orange-400'}`}>
+                        {investMode === 'circle' ? '🤖 Circle (AI)' : '🦊 MetaMask'}
+                      </span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-400">Target APY</span>
@@ -819,11 +987,26 @@ export default function PoolsPage() {
                     Cancel
                   </Button>
                   <Button
-                    disabled={!investAmount || parseFloat(investAmount) < (getCurrentPool()?.minDeposit || 0)}
+                    disabled={
+                      !investAmount || 
+                      parseFloat(investAmount) < (getCurrentPool()?.minDeposit || 0) ||
+                      (investMode === 'circle' && parseFloat(investAmount) > circleWalletBalance) ||
+                      (investMode === 'circle' && !circleWalletHasGas) ||
+                      circleLoading
+                    }
                     onClick={handleConfirmInvestment}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    className={`flex-1 text-white ${
+                      investMode === 'circle' 
+                        ? 'bg-purple-600 hover:bg-purple-700' 
+                        : 'bg-blue-600 hover:bg-blue-700'
+                    }`}
                   >
-                    Confirm Investment
+                    {circleLoading 
+                      ? 'Processing...' 
+                      : investMode === 'circle' 
+                        ? (circleWalletHasGas ? '🤖 Invest via Circle' : '⚠️ Need Gas (ETH)') 
+                        : 'Confirm Investment'
+                    }
                   </Button>
                 </div>
               </div>
@@ -836,12 +1019,12 @@ export default function PoolsPage() {
       <InvestmentProgressModal
         isOpen={showProgressModal}
         onClose={handleCloseProgressModal}
-        step={investState.step}
-        message={investState.message}
-        txHash={investState.txHash}
-        error={investState.error}
+        step={currentInvestState.step}
+        message={currentInvestState.message}
+        txHash={currentInvestState.txHash}
+        error={currentInvestState.error}
         amount={investAmount}
-        sourceChain={selectedChain as 'ethereum' | 'base'}
+        sourceChain={investMode === 'circle' ? 'base' : selectedChain as 'ethereum' | 'base'}
       />
 
       {/* Withdraw Modal */}
