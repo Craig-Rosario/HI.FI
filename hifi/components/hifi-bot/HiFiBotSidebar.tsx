@@ -23,6 +23,7 @@ import { useHiFiBot, Plan } from '@/contexts/HiFiBotContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import ReactMarkdown from 'react-markdown';
+import Image from 'next/image';
 
 // Circle Wallet Info types
 interface CircleWalletInfo {
@@ -93,7 +94,7 @@ const ChatTab: React.FC = () => {
   return (
     <div className="flex flex-col h-full">
       {/* Messages Container */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
         {messages.map((message) => (
           <div
             key={message.id}
@@ -209,12 +210,6 @@ const ChatTab: React.FC = () => {
             className="shrink-0 text-xs px-3 py-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary transition-colors"
           >
             + New Plan
-          </button>
-          <button
-            onClick={() => handleQuickAction('Explain the pools')}
-            className="shrink-0 text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-muted/80 transition-colors"
-          >
-            Explain Pools
           </button>
           <button
             onClick={clearChat}
@@ -946,7 +941,7 @@ const PlansTab: React.FC = () => {
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
-        <div className="flex gap-1 overflow-x-auto">
+        <div className="flex gap-1 overflow-x-auto scrollbar-none">
           {['all', 'DRAFT', 'APPROVED', 'EXECUTING', 'ACTIVE', 'COMPLETED', 'CANCELLED'].map((status) => (
             <button
               key={status}
@@ -964,7 +959,7 @@ const PlansTab: React.FC = () => {
       </div>
 
       {/* Plans List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-muted-foreground/30">
         {isLoading && plans.length === 0 ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -1016,14 +1011,26 @@ export const HiFiBotSidebar: React.FC = () => {
               <p className="text-xs text-muted-foreground">Your AI Investment Assistant</p>
             </div>
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={closeSidebar}
-            className="rounded-xl"
-          >
-            <X className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/50 border border-border">
+              <Image
+                src="/images/circle.png"
+                alt="Circle"
+                width={20}
+                height={20}
+                className="rounded-full"
+              />
+              <span className="text-[15px] font-medium text-muted-foreground">Powered by Circle</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={closeSidebar}
+              className="rounded-xl"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Tabs */}

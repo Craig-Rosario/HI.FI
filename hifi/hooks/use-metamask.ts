@@ -58,7 +58,11 @@ export const useMetaMask = (): UseMetaMaskReturn => {
       const handleAccountsChanged = (accounts: string[]) => {
         if (accounts.length > 0) {
           setAccount(accounts[0]);
-          setIsConnected(true);
+          // Only keep connected if we have an authenticated user
+          const storedUser = localStorage.getItem('hifi_user');
+          if (!storedUser) {
+            setIsConnected(false);
+          }
         } else {
           disconnectWallet();
         }
@@ -78,7 +82,17 @@ export const useMetaMask = (): UseMetaMaskReturn => {
       const accounts = await window.ethereum.request({ method: 'eth_accounts' });
       if (accounts.length > 0) {
         setAccount(accounts[0]);
-        setIsConnected(true);
+        // Only mark as connected if we have an authenticated session
+        try {
+          const storedUser = localStorage.getItem('hifi_user');
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            if (parsed._id && parsed.walletAddress?.toLowerCase() === accounts[0].toLowerCase()) {
+              setIsConnected(true);
+              setUser(parsed);
+            }
+          }
+        } catch { /* ignore parse errors */ }
       }
     } catch (error) {
       console.error('Error checking wallet connection:', error);
@@ -105,7 +119,7 @@ export const useMetaMask = (): UseMetaMaskReturn => {
 
       const walletAddress = accounts[0];
       setAccount(walletAddress);
-      setIsConnected(true);
+      // Don't set isConnected yet — wait for full auth
 
       const nonceResponse = await fetch('/api/auth/nonce', {
         method: 'POST',

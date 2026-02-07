@@ -1,22 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ethers } from 'ethers';
-
-// In-memory storage for demo - in production use database
-const deposits = new Map<string, {
-  txId: string;
-  status: 'pending' | 'gateway_complete' | 'vault_complete' | 'failed';
-  sourceChain: string;
-  destinationChain: string;
-  amount: string;
-  userAddress: string;
-  gatewayTx?: string;
-  vaultTx?: string;
-  error?: string;
-  createdAt: number;
-}>();
-
-// Export for use in status endpoint
-export { deposits };
+import { deposits } from '@/lib/deposit-store';
 
 interface DepositRequest {
   amount: string; // USDC amount in wei
