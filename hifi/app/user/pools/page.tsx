@@ -106,6 +106,8 @@ export default function PoolsPage() {
   const [circleWalletAddress, setCircleWalletAddress] = useState<string | null>(null)
   const [circleWalletHasGas, setCircleWalletHasGas] = useState<boolean>(false)
   const [circleWalletEthBalance, setCircleWalletEthBalance] = useState<string>('0')
+  const [withdrawOwnerMode, setWithdrawOwnerMode] = useState<'metamask' | 'circle' | 'none'>('none')
+  const [withdrawSharesDisplay, setWithdrawSharesDisplay] = useState<string>('0')
   
   // Investment hooks
   const { state: investState, invest, reset: resetInvest } = useInvest()
@@ -307,10 +309,80 @@ export default function PoolsPage() {
     error: circleInvestState.error,
   } : investState
 
-  // Open withdraw modal
-  const openWithdrawModal = (poolId: string) => {
+  // Open withdraw modal - detect ownership first
+  const openWithdrawModal = async (poolId: string) => {
+    const pool = pools.find(p => p.id === poolId)
+    if (!pool) return
+    
     setWithdrawPool(poolId)
     document.body.style.overflow = 'hidden'
+    setWithdrawOwnerMode('none')
+    setWithdrawSharesDisplay('0')
+    
+    try {
+      const { ethers } = await import('ethers')
+      
+      const vaultAbi = [
+        'function shares(address) external view returns (uint256)',
+      ]
+      
+      const provider = new ethers.JsonRpcProvider('https://sepolia.base.org')
+      const vault = new ethers.Contract(pool.contractAddress, vaultAbi, provider)
+      
+      // Check MetaMask shares first
+      if (userAddress) {
+        const mmShares = await vault.shares(userAddress)
+        if (mmShares > BigInt(0)) {
+          setWithdrawOwnerMode('metamask')
+          setWithdrawSharesDisplay(ethers.formatUnits(mmShares, 6))
+          return
+        }
+      }
+      
+      // Check Circle wallet shares
+      try {
+        let effectiveUserId: string | null = null
+        
+        // Try session API first
+        try {
+          const authResponse = await fetch('/api/auth/session')
+          const authData = await authResponse.json()
+          effectiveUserId = authData.user?.id || null
+        } catch { /* ignore */ }
+        
+        // Fallback to localStorage
+        if (!effectiveUserId) {
+          try {
+            const storedUser = localStorage.getItem('hifi_user')
+            if (storedUser) {
+              const parsed = JSON.parse(storedUser)
+              effectiveUserId = parsed._id
+            }
+          } catch { /* ignore */ }
+        }
+        
+        if (effectiveUserId) {
+          const circleInfoResponse = await fetch(`/api/circle-wallet/info?userId=${effectiveUserId}`)
+          const circleInfo = await circleInfoResponse.json()
+          if (circleInfo.success && circleInfo.wallet?.address) {
+            const circleShares = await vault.shares(circleInfo.wallet.address)
+            if (circleShares > BigInt(0)) {
+              setWithdrawOwnerMode('circle')
+              setWithdrawSharesDisplay(ethers.formatUnits(circleShares, 6))
+              return
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to check Circle shares:', err)
+      }
+      
+      // No shares found
+      setWithdrawOwnerMode('none')
+      setWithdrawSharesDisplay('0')
+    } catch (err) {
+      console.error('Failed to detect ownership:', err)
+    }
   }
   
   const closeWithdrawModal = () => {
@@ -318,10 +390,93 @@ export default function PoolsPage() {
     document.body.style.overflow = 'unset'
   }
 
-  // Handle withdraw - calls smart contract via MetaMask
-  // Flow: Vault withdraws from Aave → Wraps to arcUSDC → Sends to user → User unwraps to USDC
+  // Handle withdraw - routes to MetaMask or Circle based on ownership
   const handleWithdraw = async () => {
     if (!withdrawPool || withdrawing) return
+    
+    const pool = pools.find(p => p.id === withdrawPool)
+    if (!pool) return
+    
+    if (withdrawOwnerMode === 'circle') {
+      // Route to Circle backend withdrawal
+      await handleCircleWithdraw(pool)
+      return
+    }
+    
+    if (withdrawOwnerMode === 'metamask') {
+      // Existing MetaMask flow
+      await handleMetaMaskWithdraw(pool)
+      return
+    }
+    
+    alert('No shares found to withdraw')
+  }
+
+  // Circle withdrawal flow (backend-executed)
+  const handleCircleWithdraw = async (pool: UIPool) => {
+    setWithdrawing(true)
+    
+    try {
+      let effectiveUserId: string | null = null
+      
+      // Try session API first
+      try {
+        const authResponse = await fetch('/api/auth/session')
+        const authData = await authResponse.json()
+        effectiveUserId = authData.user?.id || null
+      } catch { /* ignore */ }
+      
+      // Fallback to localStorage
+      if (!effectiveUserId) {
+        try {
+          const storedUser = localStorage.getItem('hifi_user')
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser)
+            effectiveUserId = parsed._id
+          }
+        } catch { /* ignore */ }
+      }
+      
+      if (!effectiveUserId) {
+        throw new Error('Please log in to withdraw via Circle wallet')
+      }
+      
+      const response = await fetch('/api/circle-wallet/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: effectiveUserId,
+          poolId: pool.id,
+          poolContractAddress: pool.contractAddress,
+        }),
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Circle withdrawal failed')
+      }
+      
+      closeWithdrawModal()
+      
+      // Refresh pools after withdrawal
+      const poolsResponse = await fetch('/api/pools')
+      const poolsData = await poolsResponse.json()
+      if (poolsData.success) {
+        setPools(poolsData.data.map(convertPoolToUIPool))
+      }
+      
+      alert(`Successfully withdrew via AI Wallet!\nUSDC sent to your Circle wallet: ${data.circleWalletAddress}\nWithdraw Tx: ${data.txHash}${data.unwrapTxHash ? '\nUnwrap Tx: ' + data.unwrapTxHash : ''}`)
+    } catch (err: any) {
+      console.error('Circle withdraw error:', err)
+      alert(`Circle withdraw failed: ${err.message || 'Unknown error'}`)
+    } finally {
+      setWithdrawing(false)
+    }
+  }
+
+  // MetaMask withdrawal flow (existing, unchanged)
+  const handleMetaMaskWithdraw = async (pool: UIPool) => {
     if (!window.ethereum) {
       alert('Please install MetaMask')
       return
@@ -330,9 +485,6 @@ export default function PoolsPage() {
     setWithdrawing(true)
     
     try {
-      const pool = pools.find(p => p.id === withdrawPool)
-      if (!pool) throw new Error('Pool not found')
-      
       // Import ethers dynamically
       const { ethers } = await import('ethers')
       
@@ -1054,8 +1206,18 @@ export default function PoolsPage() {
                 <div className="bg-gray-800 rounded-lg p-4">
                   <div className="text-sm text-gray-400 mb-1">Available to Withdraw</div>
                   <div className="font-semibold text-2xl text-green-400">
-                    {getWithdrawPool()?.currentAmount.toFixed(2)} USDC
+                    {withdrawSharesDisplay !== '0' ? parseFloat(withdrawSharesDisplay).toFixed(2) : getWithdrawPool()?.currentAmount.toFixed(2)} USDC
                   </div>
+                  {withdrawOwnerMode !== 'none' && (
+                    <div className={`text-xs mt-1 ${withdrawOwnerMode === 'circle' ? 'text-purple-400' : 'text-orange-400'}`}>
+                      Owned by {withdrawOwnerMode === 'circle' ? 'AI Wallet (Circle)' : 'MetaMask'}
+                    </div>
+                  )}
+                  {withdrawOwnerMode === 'none' && (
+                    <div className="text-xs mt-1 text-red-400">
+                      No shares found for your wallets
+                    </div>
+                  )}
                 </div>
                 
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4">
@@ -1092,10 +1254,21 @@ export default function PoolsPage() {
                   </Button>
                   <Button
                     onClick={handleWithdraw}
-                    disabled={withdrawing}
-                    className="flex-1 bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={withdrawing || withdrawOwnerMode === 'none'}
+                    className={`flex-1 text-white ${
+                      withdrawOwnerMode === 'circle'
+                        ? 'bg-purple-600 hover:bg-purple-700'
+                        : 'bg-purple-600 hover:bg-purple-700'
+                    }`}
                   >
-                    {withdrawing ? 'Processing...' : 'Withdraw All'}
+                    {withdrawing 
+                      ? 'Processing...' 
+                      : withdrawOwnerMode === 'circle'
+                        ? 'Withdraw All (AI Wallet)'
+                        : withdrawOwnerMode === 'metamask'
+                          ? 'Withdraw All (MetaMask)'
+                          : 'No Shares Found'
+                    }
                   </Button>
                 </div>
               </div>

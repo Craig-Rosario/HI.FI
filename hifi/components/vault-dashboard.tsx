@@ -81,8 +81,8 @@ export function VaultDashboard() {
         };
       case VaultState.DEPLOYED:
         return { 
-          label: `Deployed to Aave (Earning yield)`,
-          color: 'text-green-400'
+          label: vaultData.userShares > BigInt(0) ? 'Withdraw Window Open' : 'Deployed (Earning yield)',
+          color: vaultData.userShares > BigInt(0) ? 'text-blue-400' : 'text-green-400'
         };
       case VaultState.WITHDRAW_WINDOW:
         return { 
@@ -120,8 +120,24 @@ export function VaultDashboard() {
       );
     }
 
-    // DEPLOYED state - show open withdraw window (owner only)
+    // DEPLOYED state - V2 pools: users can withdraw after deploy delay; show withdraw button if user has shares
     if (vaultData.state === VaultState.DEPLOYED) {
+      if (vaultData.canWithdraw && vaultData.userShares > BigInt(0)) {
+        const isCircle = vaultData.vaultOwnerMode === 'circle';
+        const buttonLabel = isCircle
+          ? 'Withdraw All (AI Wallet)'
+          : 'Withdraw All (MetaMask)';
+        
+        return (
+          <Button
+            onClick={() => withdrawAll(undefined, vaultData.vaultOwnerMode)}
+            disabled={isActionPending}
+            className={`w-full ${isCircle ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+          >
+            {isActionPending ? actionMessage : buttonLabel}
+          </Button>
+        );
+      }
       if (vaultData.isOwner) {
         return (
           <Button
@@ -143,13 +159,18 @@ export function VaultDashboard() {
     // WITHDRAW_WINDOW state - show withdraw button
     if (vaultData.state === VaultState.WITHDRAW_WINDOW) {
       if (vaultData.canWithdraw && vaultData.userShares > BigInt(0)) {
+        const isCircle = vaultData.vaultOwnerMode === 'circle';
+        const buttonLabel = isCircle
+          ? 'Withdraw All (AI Wallet)'
+          : 'Withdraw All (MetaMask)';
+        
         return (
           <Button
-            onClick={withdrawAll}
+            onClick={() => withdrawAll(undefined, vaultData.vaultOwnerMode)}
             disabled={isActionPending}
-            className="w-full bg-blue-600 hover:bg-blue-700"
+            className={`w-full ${isCircle ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
-            {isActionPending ? actionMessage : 'Withdraw All'}
+            {isActionPending ? actionMessage : buttonLabel}
           </Button>
         );
       }
@@ -257,6 +278,11 @@ export function VaultDashboard() {
             <div className="text-white font-bold text-lg">
               ${formatUSDC(vaultData.userShares)} USDC
             </div>
+            {vaultData.vaultOwnerMode !== 'none' && (
+              <div className={`text-xs mt-1 ${vaultData.vaultOwnerMode === 'circle' ? 'text-purple-400' : 'text-orange-400'}`}>
+                via {vaultData.vaultOwnerMode === 'circle' ? 'AI Wallet' : 'MetaMask'}
+              </div>
+            )}
           </div>
           {vaultData.state === VaultState.DEPLOYED && vaultData.yieldEarned > BigInt(0) && (
             <>

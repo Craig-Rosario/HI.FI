@@ -10,6 +10,24 @@ import {
   getUserCircleWallet 
 } from '@/lib/circle-executor';
 
+/**
+ * V2 pool contract addresses from env vars.
+ * These are the authoritative addresses for Circle/AI deposits.
+ * Maps plan risk levels (easy/medium/hard) to contract addresses.
+ */
+function getV2PoolAddress(riskLevel: string): string | undefined {
+  switch (riskLevel) {
+    case 'easy':
+      return process.env.NEXT_PUBLIC_EASY_POOL_V2_ADDRESS || process.env.NEXT_POOL_VAULT_ADDRESS;
+    case 'medium':
+      return process.env.NEXT_PUBLIC_MEDIUM_POOL_V2_ADDRESS || process.env.NEXT_MEDIUM_POOL_VAULT_ADDRESS;
+    case 'hard':
+      return process.env.NEXT_PUBLIC_HIGH_RISK_POOL_ADDRESS;
+    default:
+      return undefined;
+  }
+}
+
 interface ExecutionResult {
   success: boolean;
   poolName: string;
@@ -138,14 +156,17 @@ export async function POST(request: NextRequest) {
     });
 
     // Prepare allocations with contract addresses
+    // Priority: env var V2 address > DB address (env vars are the authoritative source for V2 pools)
     const allocationsWithAddresses = plan.allocations.map((alloc: any) => {
       const pool = poolMap[alloc.riskLevel];
-      console.log(`[Execute Plan] Allocation: ${alloc.poolName} (${alloc.riskLevel}) -> Pool: ${pool?.name} @ ${pool?.contractAddress}`);
+      const envAddress = getV2PoolAddress(alloc.riskLevel);
+      const finalAddress = envAddress || pool?.contractAddress;
+      console.log(`[Execute Plan] Allocation: ${alloc.poolName} (${alloc.riskLevel}) -> Pool: ${pool?.name} @ ${finalAddress} (env: ${envAddress || 'n/a'}, db: ${pool?.contractAddress || 'n/a'})`);
       return {
         poolId: alloc.poolId || pool?._id?.toString(),
         poolName: alloc.poolName,
         amount: alloc.amount,
-        poolContractAddress: pool?.contractAddress,
+        poolContractAddress: finalAddress,
       };
     });
     

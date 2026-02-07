@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { ethers, BrowserProvider, Contract } from 'ethers';
-import { VaultState } from './use-vault-state';
+import { VaultState, VaultOwnerMode } from './use-vault-state';
 
 // Contract addresses from env
 const getAddresses = (poolVaultAddress?: string) => ({
@@ -64,7 +64,7 @@ export interface UseVaultActionsReturn {
   // Actions
   deployToAave: () => Promise<ActionResult>;
   withdraw: (shareAmount?: bigint, poolInfo?: PoolInfo) => Promise<ActionResult>;
-  withdrawAll: (poolInfo?: PoolInfo) => Promise<ActionResult>;
+  withdrawAll: (poolInfo?: PoolInfo, vaultOwnerMode?: VaultOwnerMode) => Promise<ActionResult>;
   openWithdrawWindow: (durationSeconds: number) => Promise<ActionResult>;
   
   // Reset
@@ -266,8 +266,15 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
 
   /**
    * Withdraw all shares
+   * Routes to MetaMask or Circle based on vaultOwnerMode
    */
-  const withdrawAll = useCallback(async (poolInfo?: PoolInfo): Promise<ActionResult> => {
+  const withdrawAll = useCallback(async (poolInfo?: PoolInfo, vaultOwnerMode?: VaultOwnerMode): Promise<ActionResult> => {
+    // If Circle mode, route to backend Circle withdrawal API
+    if (vaultOwnerMode === 'circle') {
+      return withdrawAllViaCircle(poolInfo);
+    }
+    
+    // Default: MetaMask flow (existing, unchanged)
     const addresses = getAddresses(poolInfo?.poolContractAddress);
     
     try {
@@ -280,19 +287,15 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
       const poolVault = new Contract(addresses.poolVault, POOL_VAULT_ABI, signer);
 
       // Verify on-chain state
-      const [state, withdrawWindowEnd, userShares] = await Promise.all([
+      const [state, userShares] = await Promise.all([
         poolVault.state(),
-        poolVault.withdrawWindowEnd(),
         poolVault.shares(userAddress),
       ]);
 
-      if (Number(state) !== VaultState.WITHDRAW_WINDOW) {
-        throw new Error('Withdraw window is not open');
-      }
-
-      const now = BigInt(Math.floor(Date.now() / 1000));
-      if (now > withdrawWindowEnd) {
-        throw new Error('Withdraw window has expired');
+      // V2 contracts: withdrawal is allowed when state == DEPLOYED (1) and isWithdrawOpen() is true
+      // Also support legacy WITHDRAW_WINDOW (2) state
+      if (Number(state) !== VaultState.DEPLOYED && Number(state) !== VaultState.WITHDRAW_WINDOW) {
+        throw new Error('Pool is not in a withdrawable state');
       }
 
       if (userShares === BigInt(0)) {
@@ -302,13 +305,9 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
       setActionState('pending');
       setActionMessage('Withdrawing all shares (MetaMask popup)...');
 
-      // Try withdrawAll first, fall back to withdraw(userShares)
-      let tx;
-      try {
-        tx = await poolVault.withdrawAll();
-      } catch {
-        tx = await poolVault.withdraw(userShares);
-      }
+      // Call withdraw(shares) directly — do NOT use withdrawAll() as its 
+      // this.withdraw() pattern changes msg.sender in V2 contracts
+      const tx = await poolVault.withdraw(userShares);
 
       setActionState('confirming');
       setActionMessage('Waiting for confirmation...');
@@ -347,6 +346,83 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
     } catch (err: any) {
       console.error('WithdrawAll error:', err);
       const errorMsg = err.message || 'Withdrawal failed';
+      setActionState('error');
+      setActionMessage(errorMsg);
+      setError(errorMsg);
+      return { success: false, error: errorMsg };
+    }
+  }, [reset, onSuccess]);
+
+  /**
+   * Withdraw all shares via Circle (backend-executed)
+   * Called when vaultOwnerMode === 'circle'
+   */
+  const withdrawAllViaCircle = useCallback(async (poolInfo?: PoolInfo): Promise<ActionResult> => {
+    try {
+      reset();
+      setActionState('checking');
+      setActionMessage('Verifying Circle wallet ownership on-chain...');
+
+      // Get userId from auth session or localStorage
+      let effectiveUserId: string | null = null;
+      
+      try {
+        const authResponse = await fetch('/api/auth/session');
+        const authData = await authResponse.json();
+        effectiveUserId = authData.user?.id || null;
+      } catch { /* ignore */ }
+      
+      if (!effectiveUserId && typeof window !== 'undefined') {
+        try {
+          const storedUser = localStorage.getItem('hifi_user');
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser);
+            effectiveUserId = parsed._id;
+          }
+        } catch { /* ignore */ }
+      }
+      
+      if (!effectiveUserId) {
+        throw new Error('Please log in to withdraw via Circle wallet');
+      }
+
+      setActionState('pending');
+      setActionMessage('Executing withdrawal via AI Wallet (no signature needed)...');
+
+      const response = await fetch('/api/circle-wallet/withdraw', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: effectiveUserId,
+          poolId: poolInfo?.poolId,
+          poolContractAddress: poolInfo?.poolContractAddress,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'Circle withdrawal failed');
+      }
+
+      if (!data.txHash || !data.txHash.startsWith('0x')) {
+        throw new Error('No valid blockchain transaction hash received');
+      }
+
+      setActionState('confirming');
+      setActionMessage('Withdrawal confirmed on-chain!');
+      setLastTxHash(data.txHash);
+
+      setActionState('success');
+      setActionMessage('All funds withdrawn via AI Wallet!');
+      
+      onSuccess?.();
+      
+      return { success: true, txHash: data.txHash };
+
+    } catch (err: any) {
+      console.error('Circle WithdrawAll error:', err);
+      const errorMsg = err.message || 'Circle withdrawal failed';
       setActionState('error');
       setActionMessage(errorMsg);
       setError(errorMsg);
