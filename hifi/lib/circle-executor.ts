@@ -21,7 +21,7 @@ import Transaction from "@/models/Transaction";
 // Contract addresses on Base Sepolia
 const USDC_BASE_SEPOLIA = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 // Use server-side env var (NEXT_ARCUSDC_ADDRESS) with correct fallback address
-const ARC_USDC_BASE_SEPOLIA = process.env.NEXT_ARCUSDC_ADDRESS || process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || '0x15C7881801F78ECFad935c137eD38B7F8316B5e8';
+const ARC_USDC_BASE_SEPOLIA = process.env.NEXT_ARCUSDC_ADDRESS || process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || '0xa2C75790AEC2d0cE701a34197E3c5947A83C5D4e';
 const BASE_SEPOLIA_RPC = 'https://sepolia.base.org';
 const CHAIN_ID = '84532';
 
