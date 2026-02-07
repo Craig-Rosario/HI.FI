@@ -131,9 +131,9 @@ export const useInvest = (): UseInvestReturn => {
         params: [{ chainId: `0x${chainId.toString(16)}` }],
       });
       return true;
-    } catch (switchError: any) {
+    } catch (switchError: unknown) {
       // Chain not added, try to add it
-      if (switchError.code === 4902) {
+      if ((switchError as { code?: number }).code === 4902) {
         try {
           if (chainId === ETH_SEPOLIA_CHAIN_ID) {
             await window.ethereum.request({
@@ -427,8 +427,8 @@ export const useInvest = (): UseInvestReturn => {
         if (vaultState !== BigInt(0)) {
           throw new Error(`Pool is not accepting deposits. Current state: ${vaultState === BigInt(1) ? 'Deployed' : 'Withdraw'}`);
         }
-      } catch (stateError: any) {
-        console.warn('Could not check vault state:', stateError.message);
+      } catch (stateError: unknown) {
+        console.warn('Could not check vault state:', stateError instanceof Error ? stateError.message : stateError);
         // Continue anyway
       }
 
@@ -539,8 +539,8 @@ export const useInvest = (): UseInvestReturn => {
           if (vaultState !== BigInt(0)) {
             throw new Error(`Pool is not accepting deposits. Current state: ${vaultState === BigInt(1) ? 'Deployed' : 'Withdraw'}`);
           }
-        } catch (stateError: any) {
-          console.warn('Could not check vault state:', stateError.message);
+        } catch (stateError: unknown) {
+          console.warn('Could not check vault state:', stateError instanceof Error ? stateError.message : stateError);
           // Continue anyway
         }
 
@@ -597,15 +597,15 @@ export const useInvest = (): UseInvestReturn => {
         });
       }
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Investment error:', error);
-      
-      if (error.code === 4001) {
+      const err = error as { code?: number | string; message?: string };
+      if (err.code === 4001) {
         setError('Transaction cancelled by user');
-      } else if (error.code === 'ACTION_REJECTED') {
+      } else if (err.code === 'ACTION_REJECTED') {
         setError('Transaction rejected by user');
       } else {
-        setError(error.message || 'Investment failed');
+        setError(err.message || 'Investment failed');
       }
     }
   };

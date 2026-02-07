@@ -250,7 +250,7 @@ export function InvestmentProgressModal({
             {/* Cancel Warning for In-Progress */}
             {!isComplete && !isError && (
               <p className="text-xs text-center text-gray-500">
-                Please don't close this window during the investment process.
+                Please don&apos;t close this window during the investment process.
                 Check MetaMask for transaction approvals.
               </p>
             )}

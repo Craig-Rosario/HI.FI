@@ -242,7 +242,7 @@ export async function GET(request: NextRequest) {
         }
         
         // Auto-deploy if cap is reached and still collecting
-        let finalState = await autoDeployIfCapReached(
+        const finalState = await autoDeployIfCapReached(
           pool.contractAddress,
           pool.chainId,
           onChainTVL,

@@ -78,7 +78,7 @@ export default function DashboardPage() {
       const transactions: Transaction[] = txData.transactions || []
       
       // Fetch all pages if there are more
-      let currentPage = 1
+      const currentPage = 1
       let allTransactions = [...transactions]
       
       if (txData.pagination?.totalPages > 1) {

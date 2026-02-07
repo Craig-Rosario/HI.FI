@@ -15,7 +15,6 @@
 import { CircleDeveloperControlledWalletsClient } from "@circle-fin/developer-controlled-wallets";
 import connectToDatabase from "./mongodb";
 import User from "@/models/User";
-import Pool from "@/models/Pool";
 import Transaction from "@/models/Transaction";
 
 // Contract addresses on Base Sepolia
@@ -23,7 +22,7 @@ const USDC_BASE_SEPOLIA = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
 // Use server-side env var (NEXT_ARCUSDC_ADDRESS) with correct fallback address
 const ARC_USDC_BASE_SEPOLIA = process.env.NEXT_ARCUSDC_ADDRESS || process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || '0xa2C75790AEC2d0cE701a34197E3c5947A83C5D4e';
 const BASE_SEPOLIA_RPC = 'https://sepolia.base.org';
-const CHAIN_ID = '84532';
+const _CHAIN_ID = '84532';
 
 // Transaction states
 type TransactionState = 'INITIATED' | 'PENDING_RISK_SCREENING' | 'QUEUED' | 'SENT' | 'CONFIRMED' | 'COMPLETE' | 'CANCELLED' | 'FAILED' | 'DENIED';
@@ -392,14 +391,17 @@ export async function executeContractCall(
         state: confirmation.state,
       };
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(`[Circle Executor] Contract execution error:`, error);
     
     let errorMessage = 'Unknown Circle API error';
-    if (error?.response?.data?.message) {
-      errorMessage = error.response.data.message;
-    } else if (error?.message) {
-      errorMessage = error.message;
+    const err = error as Record<string, unknown>;
+    const errResponse = err?.response as Record<string, unknown> | undefined;
+    const errData = errResponse?.data as Record<string, unknown> | undefined;
+    if (errData?.message) {
+      errorMessage = errData.message as string;
+    } else if (err?.message) {
+      errorMessage = err.message as string;
     }
     
     return { success: false, error: errorMessage };
@@ -637,12 +639,12 @@ export async function depositToPool(
       steps,
     };
     
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[Circle Executor] Deposit error:', error);
     return {
       success: false,
       steps,
-      error: error.message || 'Unknown error during deposit',
+      error: error instanceof Error ? error.message : 'Unknown error during deposit',
     };
   }
 }
