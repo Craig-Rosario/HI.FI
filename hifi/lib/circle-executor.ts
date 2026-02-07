@@ -20,7 +20,8 @@ import Transaction from "@/models/Transaction";
 
 // Contract addresses on Base Sepolia
 const USDC_BASE_SEPOLIA = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
-const ARC_USDC_BASE_SEPOLIA = process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || '0x0DD76fB7C83A84C57C81A4353B565f34016aBaf8';
+// Use server-side env var (NEXT_ARCUSDC_ADDRESS) with correct fallback address
+const ARC_USDC_BASE_SEPOLIA = process.env.NEXT_ARCUSDC_ADDRESS || process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || '0x15C7881801F78ECFad935c137eD38B7F8316B5e8';
 const BASE_SEPOLIA_RPC = 'https://sepolia.base.org';
 const CHAIN_ID = '84532';
 
@@ -163,6 +164,63 @@ export async function checkArcUSDCBalance(walletAddress: string): Promise<number
 }
 
 /**
+ * Verify a transaction exists on-chain by checking the RPC
+ * This is the ultimate safeguard against fake txHashes
+ */
+async function verifyTransactionOnChain(txHash: string): Promise<{ verified: boolean; blockNumber?: number; error?: string }> {
+  try {
+    console.log(`[Circle Executor] Verifying transaction on-chain: ${txHash}`);
+    
+    const response = await fetch(BASE_SEPOLIA_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_getTransactionReceipt',
+        params: [txHash],
+        id: 1,
+      }),
+    });
+    
+    const result = await response.json();
+    
+    if (result.result && result.result.blockNumber) {
+      const blockNumber = parseInt(result.result.blockNumber, 16);
+      console.log(`[Circle Executor] ✅ Transaction verified on-chain in block ${blockNumber}`);
+      return { verified: true, blockNumber };
+    }
+    
+    // Transaction might be pending, wait and retry
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const retryResponse = await fetch(BASE_SEPOLIA_RPC, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_getTransactionReceipt',
+        params: [txHash],
+        id: 1,
+      }),
+    });
+    
+    const retryResult = await retryResponse.json();
+    
+    if (retryResult.result && retryResult.result.blockNumber) {
+      const blockNumber = parseInt(retryResult.result.blockNumber, 16);
+      console.log(`[Circle Executor] ✅ Transaction verified on-chain in block ${blockNumber} (retry)`);
+      return { verified: true, blockNumber };
+    }
+    
+    console.log(`[Circle Executor] ⚠️ Transaction not found on-chain yet: ${txHash}`);
+    return { verified: false, error: 'Transaction not found on-chain' };
+  } catch (error) {
+    console.error(`[Circle Executor] Error verifying transaction on-chain:`, error);
+    return { verified: false, error: error instanceof Error ? error.message : 'Unknown error' };
+  }
+}
+
+/**
  * Wait for a Circle transaction to be confirmed
  * Polls the transaction status until it's confirmed or fails
  */
@@ -206,7 +264,20 @@ async function waitForTransactionConfirmation(
       
       // Success states
       if (state === 'CONFIRMED' || state === 'COMPLETE') {
-        return { confirmed: true, txHash, state };
+        // CRITICAL: Verify the transaction actually exists on-chain
+        if (txHash && txHash.startsWith('0x')) {
+          const onChainVerification = await verifyTransactionOnChain(txHash);
+          if (onChainVerification.verified) {
+            console.log(`[Circle Executor] ✅ Transaction ${txHash} verified on-chain in block ${onChainVerification.blockNumber}`);
+            return { confirmed: true, txHash, state };
+          } else {
+            console.log(`[Circle Executor] ⚠️ Circle says confirmed but not found on-chain yet, continuing to poll...`);
+            // Continue polling - transaction might still be propagating
+          }
+        } else {
+          // Circle says confirmed but no txHash - keep polling
+          console.log(`[Circle Executor] ⚠️ Circle says ${state} but no txHash yet, continuing...`);
+        }
       }
       
       // Failure states
@@ -294,7 +365,18 @@ export async function executeContractCall(
     const confirmation = await waitForTransactionConfirmation(transactionId);
     
     if (confirmation.confirmed) {
-      console.log(`[Circle Executor] ✅ Transaction confirmed: ${confirmation.txHash}`);
+      // CRITICAL: Require a REAL txHash - never mark as success without it
+      if (!confirmation.txHash || !confirmation.txHash.startsWith('0x')) {
+        console.error(`[Circle Executor] ❌ Transaction confirmed but no valid txHash returned!`);
+        return {
+          success: false,
+          transactionId,
+          error: 'Transaction confirmed but no valid blockchain hash received',
+          state: confirmation.state,
+        };
+      }
+      
+      console.log(`[Circle Executor] ✅ Transaction confirmed with txHash: ${confirmation.txHash}`);
       return {
         success: true,
         transactionId,
@@ -454,7 +536,7 @@ export async function depositToPool(
     );
     
     steps.push({
-      step: 'wrap_to_arcusdc',
+      step: 'wrap_usdc',
       success: wrapResult.success,
       transactionId: wrapResult.transactionId,
       txHash: wrapResult.txHash,
@@ -518,7 +600,18 @@ export async function depositToPool(
       return { success: false, steps, error: `Pool deposit failed: ${depositResult.error}` };
     }
     
-    // Record the transaction in database
+    // CRITICAL: Only record transaction if we have a REAL blockchain txHash
+    // NEVER use fake hashes or transaction IDs as txHash
+    if (!depositResult.txHash) {
+      console.error('[Circle Executor] ❌ CRITICAL: No real txHash returned from deposit transaction!');
+      return {
+        success: false,
+        steps,
+        error: 'No blockchain transaction hash received. Transaction may not have been submitted to chain.',
+      };
+    }
+
+    // Record the transaction in database only with REAL txHash
     if (poolId && poolName) {
       try {
         await Transaction.create({
@@ -528,10 +621,10 @@ export async function depositToPool(
           type: 'deposit',
           chain: 'BASE',
           amount: amount.toString(),
-          txHash: depositResult.txHash || depositResult.transactionId || `circle-${Date.now()}`,
+          txHash: depositResult.txHash, // REAL txHash only
           status: 'confirmed',
         });
-        console.log(`[Circle Executor] Transaction recorded for ${poolName}`);
+        console.log(`[Circle Executor] Transaction recorded for ${poolName} with txHash: ${depositResult.txHash}`);
       } catch (txErr) {
         console.warn('[Circle Executor] Failed to record transaction:', txErr);
       }

@@ -185,11 +185,14 @@ export async function POST(request: NextRequest) {
       const execResult = executionResult.results[i];
       const allocation = plan.allocations[i];
 
-      // Find the deposit step's txHash
+      // Find the deposit step's txHash - MUST be a real blockchain hash
       const depositStep = execResult.steps.find(s => s.step === 'deposit_pool');
-      const txHash = depositStep?.txHash || execResult.steps.find(s => s.txHash)?.txHash;
+      const txHash = depositStep?.txHash;
+      
+      // CRITICAL: Only mark as success if we have a REAL txHash
+      const hasValidTxHash = txHash && txHash.startsWith('0x');
 
-      if (execResult.success) {
+      if (execResult.success && hasValidTxHash) {
         // Update allocation with transaction details
         if (allocation) {
           plan.allocations[i].txHash = txHash;
@@ -204,11 +207,16 @@ export async function POST(request: NextRequest) {
           steps: execResult.steps,
         });
       } else {
+        // FAIL if no valid txHash, even if executor said success
+        const errorReason = !hasValidTxHash && execResult.success 
+          ? 'Transaction submitted but no valid blockchain hash received'
+          : (execResult.error || 'Execution failed');
+          
         results.push({
           success: false,
           poolName: execResult.poolName,
           amount: execResult.amount,
-          error: execResult.error || 'Execution failed',
+          error: errorReason,
           steps: execResult.steps,
         });
       }

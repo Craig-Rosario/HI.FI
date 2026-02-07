@@ -112,15 +112,30 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
     
-    // Find the deposit transaction hash
+    // Find the deposit transaction hash - MUST be a real blockchain hash
     const depositStep = result.steps.find(s => s.step === 'deposit_pool');
-    const txHash = depositStep?.txHash || result.steps.find(s => s.txHash)?.txHash;
+    const txHash = depositStep?.txHash;
     
+    // CRITICAL: Validate we have a REAL txHash before marking success
+    if (!txHash || !txHash.startsWith('0x')) {
+      console.error('[Circle Invest API] ❌ No valid txHash in deposit step!');
+      return NextResponse.json({
+        error: 'Transaction submitted but no valid blockchain hash received. Check BaseScan manually.',
+        steps: result.steps,
+      }, { status: 500 });
+    }
+    
+    // Return ONLY real data - all txHashes must be valid blockchain hashes
     return NextResponse.json({
       success: true,
       message: `Successfully invested ${amount} USDC via Circle wallet`,
-      steps: result.steps,
-      txHash,
+      txHash, // Real blockchain hash that opens on BaseScan
+      steps: result.steps.map(s => ({
+        step: s.step,
+        success: s.success,
+        txHash: s.txHash, // Real hashes only
+        error: s.error,
+      })),
     });
     
   } catch (error) {

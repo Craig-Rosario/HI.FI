@@ -5,7 +5,11 @@ import ChatMessage from '@/models/ChatMessage';
 import Plan from '@/models/Plan';
 import Pool from '@/models/Pool';
 
-const genAI = new GoogleGenerativeAI('AIzaSyD2pVCdT6dHCKKbiAQQvGgYYXACg1sDOHg');
+if (!process.env.GEMINI_API_KEY) {
+  throw new Error('GEMINI_API_KEY environment variable is not set');
+}
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 const SYSTEM_PROMPT = `You are HI.FI BOT, an AI assistant helping users create USDC investment plans in a DeFi platform.
 
