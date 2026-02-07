@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { deposits } from '../../route';
+import { deposits } from '@/lib/deposit-store';
 
 interface RouteParams {
   params: {

@@ -243,9 +243,13 @@ export default function TransactionsPage() {
                           <ArrowUpRight size={16} className="text-green-500" />
                         )}
                         <span className="text-sm capitalize">{tx.type}</span>
-                        {user?.circleWalletAddress && tx.userAddress?.toLowerCase() === user.circleWalletAddress.toLowerCase() && (
+                        {user?.circleWalletAddress && tx.userAddress?.toLowerCase() === user.circleWalletAddress.toLowerCase() ? (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/15 text-purple-400 whitespace-nowrap">
                             AI Wallet
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-500/15 text-orange-400 whitespace-nowrap">
+                            MetaMask
                           </span>
                         )}
                       </div>
