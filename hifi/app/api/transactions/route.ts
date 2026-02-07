@@ -10,6 +10,7 @@ const ITEMS_PER_PAGE = 20;
  * Fetch user transactions with pagination
  * Query params:
  *   - userAddress: wallet address (required)
+ *   - circleWalletAddress: Circle wallet address (optional, to include Circle tx)
  *   - page: page number (default: 1)
  *   - type: 'deposit' | 'withdrawal' | 'all' (default: 'all')
  */
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userAddress = searchParams.get('userAddress');
+    const circleWalletAddress = searchParams.get('circleWalletAddress');
     const page = parseInt(searchParams.get('page') || '1', 10);
     const type = searchParams.get('type') || 'all';
 
@@ -29,9 +31,16 @@ export async function GET(request: NextRequest) {
 
     await connectToDatabase();
 
-    // Build query
+    // Build query — match transactions from either MetaMask or Circle wallet
+    const addressFilters: Record<string, string>[] = [
+      { userAddress: userAddress.toLowerCase() },
+    ];
+    if (circleWalletAddress) {
+      addressFilters.push({ userAddress: circleWalletAddress.toLowerCase() });
+    }
+
     const query: Record<string, unknown> = {
-      userAddress: userAddress.toLowerCase(),
+      $or: addressFilters,
     };
 
     if (type !== 'all') {

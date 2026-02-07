@@ -169,14 +169,7 @@ export function useVaultState(userAddress?: string, userId?: string): UseVaultSt
         try {
           let effectiveUserId = userId;
           
-          if (!effectiveUserId) {
-            // Try to get from session API
-            const authResponse = await fetch('/api/auth/session');
-            const authData = await authResponse.json();
-            effectiveUserId = authData.user?.id;
-          }
-          
-          // Also try localStorage as fallback
+          // Get from localStorage as fallback
           if (!effectiveUserId && typeof window !== 'undefined') {
             try {
               const storedUser = localStorage.getItem('hifi_user');

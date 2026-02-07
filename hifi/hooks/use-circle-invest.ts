@@ -61,17 +61,21 @@ export function useCircleInvest(): UseCircleInvestReturn {
     setIsLoading(true);
     
     try {
-      // Get user ID from auth context or session
-      const authResponse = await fetch('/api/auth/session');
-      const authData = await authResponse.json();
+      // Get user ID from localStorage
+      let userId: string | null = null;
+      try {
+        const storedUser = localStorage.getItem('hifi_user');
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser);
+          userId = parsed._id;
+        }
+      } catch { /* ignore */ }
       
-      if (!authData.user?.id) {
+      if (!userId) {
         updateState('error', { error: 'Please log in to use Circle wallet' });
         setIsLoading(false);
         return false;
       }
-      
-      const userId = authData.user.id;
       
       updateState('checking_wallet');
       

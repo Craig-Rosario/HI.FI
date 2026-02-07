@@ -134,11 +134,20 @@ export default function PoolsPage() {
   useEffect(() => {
     const fetchCircleWallet = async () => {
       try {
-        const authResponse = await fetch('/api/auth/session')
-        const authData = await authResponse.json()
-        if (!authData.user?.id) return
+        // Get userId from localStorage
+        let userId: string | null = null
+        try {
+          const storedUser = localStorage.getItem('hifi_user')
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser)
+            userId = parsed._id
+          }
+        } catch { /* ignore */ }
+
+        if (!userId) return
         
-        const response = await fetch(`/api/circle-wallet/info?userId=${authData.user.id}`)
+        const response = await fetch(`/api/circle-wallet/info?userId=${userId}`)
+        if (!response.ok) return
         const data = await response.json()
         
         if (data.success && data.wallet) {
@@ -343,23 +352,14 @@ export default function PoolsPage() {
       try {
         let effectiveUserId: string | null = null
         
-        // Try session API first
+        // Get userId from localStorage
         try {
-          const authResponse = await fetch('/api/auth/session')
-          const authData = await authResponse.json()
-          effectiveUserId = authData.user?.id || null
+          const storedUser = localStorage.getItem('hifi_user')
+          if (storedUser) {
+            const parsed = JSON.parse(storedUser)
+            effectiveUserId = parsed._id
+          }
         } catch { /* ignore */ }
-        
-        // Fallback to localStorage
-        if (!effectiveUserId) {
-          try {
-            const storedUser = localStorage.getItem('hifi_user')
-            if (storedUser) {
-              const parsed = JSON.parse(storedUser)
-              effectiveUserId = parsed._id
-            }
-          } catch { /* ignore */ }
-        }
         
         if (effectiveUserId) {
           const circleInfoResponse = await fetch(`/api/circle-wallet/info?userId=${effectiveUserId}`)
@@ -419,23 +419,14 @@ export default function PoolsPage() {
     try {
       let effectiveUserId: string | null = null
       
-      // Try session API first
+      // Get userId from localStorage
       try {
-        const authResponse = await fetch('/api/auth/session')
-        const authData = await authResponse.json()
-        effectiveUserId = authData.user?.id || null
+        const storedUser = localStorage.getItem('hifi_user')
+        if (storedUser) {
+          const parsed = JSON.parse(storedUser)
+          effectiveUserId = parsed._id
+        }
       } catch { /* ignore */ }
-      
-      // Fallback to localStorage
-      if (!effectiveUserId) {
-        try {
-          const storedUser = localStorage.getItem('hifi_user')
-          if (storedUser) {
-            const parsed = JSON.parse(storedUser)
-            effectiveUserId = parsed._id
-          }
-        } catch { /* ignore */ }
-      }
       
       if (!effectiveUserId) {
         throw new Error('Please log in to withdraw via Circle wallet')

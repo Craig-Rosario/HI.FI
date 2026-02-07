@@ -47,14 +47,24 @@ export default function DashboardPage() {
     }
 
     try {
+      // Build query params including Circle wallet address
+      const txParams = new URLSearchParams({
+        userAddress: user.walletAddress,
+        page: '1',
+        type: 'all',
+      })
+      if (user.circleWalletAddress) {
+        txParams.set('circleWalletAddress', user.circleWalletAddress)
+      }
+
       // Fetch transactions and pools in parallel
       const [txResponse, poolsResponse] = await Promise.all([
-        fetch(`/api/transactions?userAddress=${user.walletAddress}&page=1&type=all`),
+        fetch(`/api/transactions?${txParams}`),
         fetch('/api/pools'),
       ])
 
       // Also fetch all transactions (without pagination limit) for accurate totals
-      const allTxResponse = await fetch(`/api/transactions?userAddress=${user.walletAddress}&page=1&type=all`)
+      const allTxResponse = await fetch(`/api/transactions?${txParams}`)
       
       const txData = await allTxResponse.json()
       const poolsData = await poolsResponse.json()
@@ -73,8 +83,10 @@ export default function DashboardPage() {
       
       if (txData.pagination?.totalPages > 1) {
         for (let page = 2; page <= txData.pagination.totalPages; page++) {
+          const pageParams = new URLSearchParams(txParams)
+          pageParams.set('page', page.toString())
           const pageResponse = await fetch(
-            `/api/transactions?userAddress=${user.walletAddress}&page=${page}&type=all`
+            `/api/transactions?${pageParams}`
           )
           const pageData = await pageResponse.json()
           allTransactions = [...allTransactions, ...(pageData.transactions || [])]

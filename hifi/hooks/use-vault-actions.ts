@@ -363,16 +363,10 @@ export function useVaultActions(onSuccess?: () => void): UseVaultActionsReturn {
       setActionState('checking');
       setActionMessage('Verifying Circle wallet ownership on-chain...');
 
-      // Get userId from auth session or localStorage
+      // Get userId from localStorage
       let effectiveUserId: string | null = null;
       
-      try {
-        const authResponse = await fetch('/api/auth/session');
-        const authData = await authResponse.json();
-        effectiveUserId = authData.user?.id || null;
-      } catch { /* ignore */ }
-      
-      if (!effectiveUserId && typeof window !== 'undefined') {
+      if (typeof window !== 'undefined') {
         try {
           const storedUser = localStorage.getItem('hifi_user');
           if (storedUser) {
