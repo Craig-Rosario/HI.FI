@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { deposits } from '@/lib/deposit-store';
 
-interface RouteParams {
-  params: {
-    txId: string;
-  };
-}
-
 export async function GET(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: Promise<{ txId: string }> }
 ) {
   try {
-    const { txId } = params;
+    const { txId } = await params;
     
     if (!txId) {
       return NextResponse.json(
