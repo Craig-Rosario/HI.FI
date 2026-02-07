@@ -33,7 +33,7 @@ async function main() {
   console.log("Deployer balance:", ethers.formatEther(await provider.getBalance(deployer.address)), "ETH\n");
 
   // Base Sepolia addresses
-  const ARC_USDC_ADDRESS = "0x15C7881801F78ECFad935c137eD38B7F8316B5e8"; // arcUSDC on Base Sepolia
+  const ARC_USDC_ADDRESS = "0xa2C75790AEC2d0cE701a34197E3c5947A83C5D4e"; // arcUSDC on Base Sepolia
   const UNDERLYING_USDC = "0x036CbD53842c5426634e7929541eC2318f3dCF7e"; // USDC on Base Sepolia
   const TREASURY_ADDRESS = "0x6D41680267986408E5e7c175Ee0622cA931859A4"; // Treasury wallet
   
