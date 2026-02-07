@@ -31,7 +31,8 @@ function getCircleClient(): CircleDeveloperControlledWalletsClient {
 
 // Contract addresses on Base Sepolia
 const USDC_BASE_SEPOLIA = '0x036CbD53842c5426634e7929541eC2318f3dCF7e';
-const ARC_USDC_BASE_SEPOLIA = process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || '0x0DD76fB7C83A84C57C81A4353B565f34016aBaf8';
+// Use server-side env var with correct fallback address
+const ARC_USDC_BASE_SEPOLIA = process.env.NEXT_ARCUSDC_ADDRESS || process.env.NEXT_PUBLIC_ARCUSDC_ADDRESS || '0x15C7881801F78ECFad935c137eD38B7F8316B5e8';
 
 // ERC20 ABI for encoding function calls
 const ERC20_ABI = [

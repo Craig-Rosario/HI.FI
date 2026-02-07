@@ -113,8 +113,18 @@ export function useCircleInvest(): UseCircleInvestReturn {
         }
       }
       
+      // CRITICAL: Only mark as complete if we got a REAL txHash
+      if (!data.txHash || !data.txHash.startsWith('0x')) {
+        updateState('error', { 
+          error: 'Investment submitted but no valid blockchain hash received',
+          steps: data.steps,
+        });
+        setIsLoading(false);
+        return false;
+      }
+      
       updateState('complete', {
-        txHash: data.txHash || data.transactionId,
+        txHash: data.txHash, // Real txHash only
         steps: data.steps,
       });
       
