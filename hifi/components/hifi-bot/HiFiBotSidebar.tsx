@@ -257,10 +257,13 @@ const ChatTab: React.FC = () => {
 
 // Circle Wallet Card Component
 const CircleWalletCard: React.FC<{ userId?: string }> = ({ userId }) => {
+  const { user } = useAuth();
   const [walletInfo, setWalletInfo] = useState<CircleWalletInfo | null>(null);
   const [fundingInfo, setFundingInfo] = useState<FundingInstructions | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isFunding, setIsFunding] = useState(false);
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [transferStatus, setTransferStatus] = useState<string | null>(null);
   const [fundAmount, setFundAmount] = useState('');
   const [showFundInput, setShowFundInput] = useState(false);
   const [selectedChain, setSelectedChain] = useState<'base-sepolia' | 'eth-sepolia'>('base-sepolia');
@@ -468,6 +471,49 @@ const CircleWalletCard: React.FC<{ userId?: string }> = ({ userId }) => {
     }
   };
 
+  // Transfer Circle wallet USDC to MetaMask
+  const transferToMetaMask = async () => {
+    if (!userId || !user?.walletAddress) {
+      setError('MetaMask wallet address not found. Please connect MetaMask first.');
+      return;
+    }
+
+    setIsTransferring(true);
+    setError(null);
+    setTransferStatus('Starting transfer...');
+
+    try {
+      const response = await fetch('/api/circle-wallet/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          destinationAddress: user.walletAddress,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setTransferStatus(`✅ ${data.message}`);
+        // Refresh balance after transfer
+        setTimeout(() => fetchWalletInfo(), 3000);
+        setTimeout(() => fetchWalletInfo(), 8000);
+        // Clear status after a few seconds
+        setTimeout(() => setTransferStatus(null), 10000);
+      } else {
+        setError(data.error || 'Transfer failed');
+        setTransferStatus(null);
+      }
+    } catch (err) {
+      console.error('Transfer error:', err);
+      setError(err instanceof Error ? err.message : 'Transfer failed');
+      setTransferStatus(null);
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   // Find USDC balance with flexible matching
   const usdcBalanceObj = walletInfo?.balances?.find(b => 
     b.token === 'USDC' || 
@@ -656,6 +702,29 @@ const CircleWalletCard: React.FC<{ userId?: string }> = ({ userId }) => {
               <div className="text-xs text-green-400/80 bg-green-500/10 rounded-lg p-2 border border-green-500/20">
                 ✅ Wallet ready for AI-managed execution!
               </div>
+
+              {/* Transfer Status */}
+              {transferStatus && (
+                <div className="text-xs text-blue-400/80 bg-blue-500/10 rounded-lg p-2 border border-blue-500/20">
+                  {transferStatus}
+                </div>
+              )}
+
+              {/* Send to MetaMask Button */}
+              <Button
+                size="sm"
+                onClick={transferToMetaMask}
+                disabled={isTransferring || parseFloat(usdcBalance) === 0}
+                className="w-full bg-orange-600 hover:bg-orange-700 text-xs"
+              >
+                {isTransferring ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-2" />
+                ) : (
+                  <ExternalLink className="h-3 w-3 mr-2" />
+                )}
+                {isTransferring ? 'Transferring...' : 'Send to MetaMask'}
+              </Button>
+
               {!showFundInput ? (
                 <Button
                   size="sm"
