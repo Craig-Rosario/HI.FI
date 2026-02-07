@@ -8,6 +8,7 @@ import Image from 'next/image'
 
 interface Transaction {
   _id: string
+  userAddress: string
   poolName: string
   type: 'deposit' | 'withdrawal'
   chain: 'ETH' | 'BASE'
@@ -51,6 +52,11 @@ export default function TransactionsPage() {
         type,
       })
 
+      // Include Circle wallet address to also fetch Circle-based transactions
+      if (user.circleWalletAddress) {
+        params.set('circleWalletAddress', user.circleWalletAddress)
+      }
+
       const response = await fetch(`/api/transactions?${params}`)
       
       if (!response.ok) {
@@ -67,7 +73,7 @@ export default function TransactionsPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [user?.walletAddress])
+  }, [user?.walletAddress, user?.circleWalletAddress])
 
   useEffect(() => {
     fetchTransactions(currentPage, filterType)
@@ -237,6 +243,11 @@ export default function TransactionsPage() {
                           <ArrowUpRight size={16} className="text-green-500" />
                         )}
                         <span className="text-sm capitalize">{tx.type}</span>
+                        {user?.circleWalletAddress && tx.userAddress?.toLowerCase() === user.circleWalletAddress.toLowerCase() && (
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-500/15 text-purple-400 whitespace-nowrap">
+                            AI Wallet
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
