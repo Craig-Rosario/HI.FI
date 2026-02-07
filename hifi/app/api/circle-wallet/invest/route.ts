@@ -9,6 +9,23 @@ import {
 } from '@/lib/circle-executor';
 
 /**
+ * V2 pool contract addresses from env vars.
+ * These override DB addresses for Circle/AI deposits.
+ */
+function getV2PoolAddressByRiskLevel(riskLevel?: string): string | undefined {
+  switch (riskLevel) {
+    case 'low':
+      return process.env.NEXT_PUBLIC_EASY_POOL_V2_ADDRESS || process.env.NEXT_POOL_VAULT_ADDRESS;
+    case 'medium':
+      return process.env.NEXT_PUBLIC_MEDIUM_POOL_V2_ADDRESS || process.env.NEXT_MEDIUM_POOL_VAULT_ADDRESS;
+    case 'high':
+      return process.env.NEXT_PUBLIC_HIGH_RISK_POOL_ADDRESS;
+    default:
+      return undefined;
+  }
+}
+
+/**
  * POST - Execute a single pool investment via Circle wallet
  * This does the same thing as MetaMask manual flow:
  * 1. Approve USDC for arcUSDC contract
@@ -51,15 +68,19 @@ export async function POST(request: NextRequest) {
     const walletAddress = user.circleWalletAddress;
     
     // Get pool contract address and name
+    // Priority: explicit poolContractAddress > env var V2 address > DB address
     let contractAddress = poolContractAddress;
     let poolName = 'Unknown Pool';
     
     const pool = await Pool.findById(poolId);
     if (pool) {
+      // Override with V2 env var address based on pool risk level
+      const envAddress = getV2PoolAddressByRiskLevel(pool.riskLevel);
       if (!contractAddress) {
-        contractAddress = pool.contractAddress;
+        contractAddress = envAddress || pool.contractAddress;
       }
       poolName = pool.name || 'Unknown Pool';
+      console.log(`[Circle Invest API] Address resolution: explicit=${poolContractAddress || 'n/a'}, env=${envAddress || 'n/a'}, db=${pool.contractAddress}, final=${contractAddress}`);
     } else if (!contractAddress) {
       return NextResponse.json({ error: 'Pool not found' }, { status: 404 });
     }

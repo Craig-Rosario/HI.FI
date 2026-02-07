@@ -36,7 +36,7 @@ export default function Hero() {
                 <div>
                     {mounted && (
                         <EncryptedText
-                            text="— POOLED FINANCE PLATFORM —"
+                            text="— AUTONOMOUS MULTICHAIN CAPITAL —"
                             encryptedClassName="text-neutral-500"
                             revealedClassName="text-pink-500 font-mono text-md tracking-[0.3em] mb-6"
                             revealDelayMs={30}

@@ -431,8 +431,15 @@ export async function executeInvestmentPlan(
 
     for (const allocation of allocations) {
       // Get pool contract address
+      // Priority: explicit address > env var V2 address > DB address
       const pool = poolMap.get(allocation.poolId) as any;
-      const poolContractAddress = allocation.poolContractAddress || pool?.contractAddress;
+      const riskLevel = pool?.riskLevel;
+      let envAddress: string | undefined;
+      if (riskLevel === 'low') envAddress = process.env.NEXT_PUBLIC_EASY_POOL_V2_ADDRESS || process.env.NEXT_POOL_VAULT_ADDRESS;
+      else if (riskLevel === 'medium') envAddress = process.env.NEXT_PUBLIC_MEDIUM_POOL_V2_ADDRESS || process.env.NEXT_MEDIUM_POOL_VAULT_ADDRESS;
+      else if (riskLevel === 'high') envAddress = process.env.NEXT_PUBLIC_HIGH_RISK_POOL_ADDRESS;
+      
+      const poolContractAddress = allocation.poolContractAddress || envAddress || pool?.contractAddress;
       
       if (!poolContractAddress) {
         results.push({

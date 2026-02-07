@@ -59,6 +59,8 @@ export type VaultUIState =
   | 'withdrawing'
   | 'error';
 
+export type VaultOwnerMode = 'metamask' | 'circle' | 'none';
+
 export interface VaultData {
   // Chain state
   state: VaultState;
@@ -69,6 +71,11 @@ export interface VaultData {
   userWithdrawable: bigint;
   owner: string;
   withdrawWindowEnd: bigint;
+  
+  // Ownership detection
+  vaultOwnerMode: VaultOwnerMode;
+  effectiveShareOwner: string | null;
+  circleWalletAddress: string | null;
   
   // Calculated
   progress: number; // 0-100
@@ -97,8 +104,9 @@ export interface UseVaultStateReturn {
 /**
  * Hook to read vault state from chain
  * All values come directly from on-chain reads
+ * Detects ownership: MetaMask vs Circle wallet vs none
  */
-export function useVaultState(userAddress?: string): UseVaultStateReturn {
+export function useVaultState(userAddress?: string, userId?: string): UseVaultStateReturn {
   const [vaultData, setVaultData] = useState<VaultData | null>(null);
   const [uiState, setUiState] = useState<VaultUIState>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -131,7 +139,7 @@ export function useVaultState(userAddress?: string): UseVaultStateReturn {
         stateRaw,
         cap,
         totalShares,
-        userShares,
+        metaMaskShares,
         owner,
         withdrawWindowEnd,
       ] = await Promise.all([
@@ -142,6 +150,64 @@ export function useVaultState(userAddress?: string): UseVaultStateReturn {
         poolVault.owner(),
         poolVault.withdrawWindowEnd(),
       ]);
+
+      const state = Number(stateRaw) as VaultState;
+
+      // === Ownership Detection ===
+      // Step 1: Check MetaMask shares
+      let vaultOwnerMode: VaultOwnerMode = 'none';
+      let effectiveShareOwner: string | null = null;
+      let userShares: bigint = BigInt(0);
+      let circleWalletAddress: string | null = null;
+
+      if (metaMaskShares > BigInt(0)) {
+        vaultOwnerMode = 'metamask';
+        effectiveShareOwner = userAddress;
+        userShares = metaMaskShares;
+      } else {
+        // Step 2: Check Circle wallet shares via API (MongoDB lookup)
+        try {
+          let effectiveUserId = userId;
+          
+          if (!effectiveUserId) {
+            // Try to get from session API
+            const authResponse = await fetch('/api/auth/session');
+            const authData = await authResponse.json();
+            effectiveUserId = authData.user?.id;
+          }
+          
+          // Also try localStorage as fallback
+          if (!effectiveUserId && typeof window !== 'undefined') {
+            try {
+              const storedUser = localStorage.getItem('hifi_user');
+              if (storedUser) {
+                const parsed = JSON.parse(storedUser);
+                effectiveUserId = parsed._id;
+              }
+            } catch { /* ignore */ }
+          }
+          
+          if (effectiveUserId) {
+            const circleInfoResponse = await fetch(`/api/circle-wallet/info?userId=${effectiveUserId}`);
+            const circleInfo = await circleInfoResponse.json();
+            
+            if (circleInfo.success && circleInfo.wallet?.address) {
+              circleWalletAddress = circleInfo.wallet.address;
+              // Read Circle wallet's shares on-chain
+              const circleShares = await poolVault.shares(circleWalletAddress);
+              
+              if (circleShares > BigInt(0)) {
+                vaultOwnerMode = 'circle';
+                effectiveShareOwner = circleWalletAddress;
+                userShares = circleShares;
+              }
+            }
+          }
+        } catch (circleErr) {
+          console.warn('Failed to check Circle wallet shares:', circleErr);
+          // Non-fatal: still show MetaMask data
+        }
+      }
 
       const state = Number(stateRaw) as VaultState;
 
@@ -184,9 +250,12 @@ export function useVaultState(userAddress?: string): UseVaultStateReturn {
       
       const canDeposit = state === VaultState.COLLECTING && !isCapReached;
       const canDeploy = state === VaultState.COLLECTING && isCapReached;
-      const canWithdraw = state === VaultState.WITHDRAW_WINDOW 
-        && now <= withdrawWindowEnd 
-        && userShares > BigInt(0);
+      // canWithdraw: V2 contracts allow withdrawal when state == DEPLOYED && deployedAt + WITHDRAW_DELAY has passed
+      // isWithdrawOpen() is true when state == DEPLOYED and the 1-minute delay after deployment has elapsed
+      // We check for both DEPLOYED (V2) and WITHDRAW_WINDOW (legacy) states
+      const canWithdraw = (
+        state === VaultState.DEPLOYED || state === VaultState.WITHDRAW_WINDOW
+      ) && userShares > BigInt(0);
 
       const vaultDataResult: VaultData = {
         state,
@@ -197,6 +266,10 @@ export function useVaultState(userAddress?: string): UseVaultStateReturn {
         userWithdrawable,
         owner,
         withdrawWindowEnd,
+        // Ownership fields
+        vaultOwnerMode,
+        effectiveShareOwner,
+        circleWalletAddress,
         progress: Math.min(progress, 100),
         isCapReached,
         isOwner,
@@ -211,10 +284,17 @@ export function useVaultState(userAddress?: string): UseVaultStateReturn {
       setVaultData(vaultDataResult);
 
       // Set UI state based on chain state
+      // V2 contracts: DEPLOYED state with shares means user can withdraw (after delay)
       if (state === VaultState.COLLECTING) {
         setUiState(isCapReached ? 'cap_reached' : 'collecting');
       } else if (state === VaultState.DEPLOYED) {
-        setUiState('deployed');
+        // V2 pools stay in DEPLOYED state for withdrawals
+        // Show as withdraw_window when user has shares to withdraw
+        if (userShares > BigInt(0)) {
+          setUiState('withdraw_window');
+        } else {
+          setUiState('deployed');
+        }
       } else if (state === VaultState.WITHDRAW_WINDOW) {
         setUiState('withdraw_window');
       }
@@ -226,7 +306,7 @@ export function useVaultState(userAddress?: string): UseVaultStateReturn {
     } finally {
       setLoading(false);
     }
-  }, [userAddress]);
+  }, [userAddress, userId]);
 
   // Initial load and periodic refresh
   useEffect(() => {
