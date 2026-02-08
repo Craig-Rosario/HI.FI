@@ -38,13 +38,6 @@ HI.FI integrates with **Arc (Circle)** and **ENS** to create a transparent, agen
 
 ---
 
-### ⭐ **ETHGlobal HackMoney Finalist Track**
-
-| Criteria | Description | How HI.FI Satisfies |
-|----------|-------------|---------------------|
-| **HackMoney Finalist (Top 10)** | Functional MVP, live demo, and strong technical architecture. | HI.FI delivers a live, non-custodial, cross-chain USDC treasury with deterministic on-chain execution and a clear end-to-end user experience. |
-
----
 
 ## 🚀 Key Features
 
