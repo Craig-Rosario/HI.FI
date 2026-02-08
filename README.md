@@ -85,23 +85,9 @@ The core functionality is managed by modular Solidity contracts that separate us
 
 ---
 
-## 🏗️ Architecture Diagram
+## 🏗️ System Architecture / User Flow  Diagram
 
-```mermaid
-graph TD
-    User((User Wallet)) -->|1. Set Risk Policy| Registry[RiskPolicyRegistry]
-    User -->|2. Deposit Any Token| Circle[Circle Gateway]
-    Circle -->|3. Cross-chain Bridge| Vault[PoolVault ERC-4626]
-    
-    subgraph On-Chain Agentic Layer
-        Vault -->|Manage Funds| Agent[StrategyExecutor - THE AGENT]
-        Agent -->|Checks Bounds| Registry
-        Agent -->|Deploys Capital| Arc[Arc Protocol]
-    end
-
-    Arc -->|Yield Accrual| Vault
-    ENS[ENS Identity] -.->|Resolves Names| User
-```
+![HI.FI Architecture](./assets/architecture.png)
 
 ---
 
