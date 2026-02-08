@@ -1,270 +1,209 @@
-# HI.FI 🎯
+# HI.FI - Non-Custodial Agentic Treasury 🎯
 
-> **Non-custodial treasury pooling** with onchain agentic execution — bridging the trust gap between AI advice and DeFi execution.
+### Trust the Bounds. Automate the Yield.
 
----
+**HI.FI** is a decentralized treasury pooling platform that bridges the gap between AI-driven strategy and DeFi execution. By separating advice from execution, HI.FI allows users to define risk parameters once and let a deterministic on-chain agent manage capital within those strict bounds. It leverages **Arc Protocol** for yield infrastructure and **Circle's cross-chain USDC gateway** to provide a seamless, chain-abstracted experience.
 
-## 🔥 The Problem
-
-**DeFi has a trust crisis.**
-
-Today's yield protocols force users to choose between:
-1. **Custody risk** — Hand over your keys to earn yield
-2. **Complexity** — Manage positions manually across multiple protocols
-3. **AI anxiety** — Let an AI control your funds (scary!)
-
-Users want smart portfolio management, but they don't want to give up control. **There's no middle ground.**
-
-### The Trust Gap
-
-```
-                    ┌─────────────────────────┐
-Current DeFi:       │  AI/Bot has custody     │  ← Users don't trust this
-                    │  User has no control    │
-                    └─────────────────────────┘
-
-                    ┌─────────────────────────┐
-Manual DeFi:        │  User does everything   │  ← Too complex
-                    │  No automation          │
-                    └─────────────────────────┘
-
-                    ┌─────────────────────────┐
-HI.FI:              │  User sets risk ONCE    │  ← Best of both worlds
-                    │  Agent executes within  │
-                    │  those bounds           │
-                    └─────────────────────────┘
-```
+> 🤖 **"The agent can execute. But only YOU define the bounds."**
 
 ---
 
-## ✅ The Solution: HI.FI
+## 🚀 Live Links
 
-HI.FI separates **advice** from **execution** with a simple principle:
-
-> **User consents once → Agent executes deterministically → User can exit anytime**
-
-### How It Works
-
-1. **Connect & Deposit** — Deposit any token from any chain (auto-converted to USDC)
-2. **Set Risk Preference** — Choose LOW / MEDIUM / HIGH (one-time decision)
-3. **Agent Executes** — Onchain StrategyExecutor deploys funds within your risk bounds
-4. **Earn Yield** — Funds deployed to Arc protocol + optional Uniswap v4 LP
-5. **Exit Anytime** — Withdraw during scheduled windows with full transparency
-
-### The Golden Rule
-
-```
-Risk Policy → Explicit Consent → Deterministic Agent → Observable State → Controlled Exit
-```
-
-**The agent can execute. But only YOU define the bounds.**
+- **GitHub Repository:** [Craig-Rosario/HI.FI](https://github.com/Craig-Rosario/HI.FI)
+- **Network:** Base Sepolia & Ethereum Sepolia
 
 ---
 
-## 🏆 Hackathon Tracks
+## 🧩 Partner Integrations
 
-### 1. Arc Protocol — Yield Infrastructure
+HI.FI integrates with **Arc (Circle)** and **ENS** to create a transparent, agentic treasury ecosystem.
 
-HI.FI uses **Arc** as the primary yield layer:
+### 🔵 **Arc (Circle) Integrations**
 
-- **arcUSDC**: Wrapped USDC that earns yield
-- **Pool Deposits**: All deposits flow through Arc's gateway
-- **Yield Accrual**: Automatic yield from Arc's underlying strategies
-
-**Why Arc?**
-- Battle-tested yield infrastructure
-- Clean ERC-4626 integration
-- Native support for scheduled withdrawals
+| Track | What the Track Looks For | How HI.FI Satisfies |
+|-------|--------------------------|---------------------|
+| **Best Chain-Abstracted USDC App** | Applications treating multiple chains as one liquidity surface using Arc and USDC. | HI.FI uses Arc as a liquidity coordination layer. Users deposit USDC from Ethereum, Base, or Arbitrum while Arc handles routing, settlement, and treasury execution behind the scenes. |
+| **Build Global Payouts & Treasury Systems** | Automated treasury systems with multi-user deposits, withdrawals, and payouts. | HI.FI functions as a pooled USDC treasury with deterministic execution, automated allocation, and transparent withdrawal logic. |
+| **Best Agentic Commerce App** | Autonomous agents executing USDC-denominated logic. | HI.FI implements a deterministic on-chain agent that executes user-approved treasury strategies using USDC, enforcing risk policies at the contract level. |
 
 ---
 
-### 2. Uniswap v4 — Agentic Finance
+### 🟣 **ENS Integrations**
 
-HI.FI implements a **fully onchain agent** that uses Uniswap v4:
-
-| Component | Purpose |
-|-----------|---------|
-| `RiskPolicyRegistry` | Stores user risk preferences |
-| `StrategyExecutor` | **THE AGENT** — deterministic decision maker |
-| `V4LiquidityAdapter` | Interfaces with v4 PoolManager |
-| `HiFiHook` | Optional hook for analytics |
-
-**Why This Is Agentic:**
-- Agent acts **autonomously** based on policy
-- No human intervention after initial setup
-- Fully **deterministic** (no AI randomness)
-- All logic is **onchain and auditable**
-
-**Risk → Allocation Mapping:**
-
-| Risk Level | v4 Exposure | Description |
-|------------|-------------|-------------|
-| LOW | 0% | Never touches v4 — vault-only |
-| MEDIUM | 30% max | Balanced exposure to USDC/ETH LP |
-| HIGH | 70% max | Aggressive but capped |
-
-> "LOW risk pools never touch Uniswap v4. Agent execution is explicitly disabled by policy."
+| Track | What the Track Looks For | How HI.FI Satisfies |
+|-------|--------------------------|---------------------|
+| **Integrate ENS** | Functional ENS resolution beyond wallet UI libraries. | HI.FI resolves ENS names on login and displays human-readable identities across dashboards, transaction history, and pool participation. |
+| **Most Creative Use of ENS in DeFi** | ENS used as a meaningful protocol-level primitive. | HI.FI uses ENS as an identity layer for treasury participation, allowing pooled finance activity to be attributed to human identities instead of raw addresses. |
 
 ---
 
-### 3. Circle — Cross-Chain Deposits
+### ⭐ **ETHGlobal HackMoney Finalist Track**
 
-HI.FI uses **Circle Gateway** for seamless cross-chain deposits:
+| Criteria | Description | How HI.FI Satisfies |
+|----------|-------------|---------------------|
+| **HackMoney Finalist (Top 10)** | Functional MVP, live demo, and strong technical architecture. | HI.FI delivers a live, non-custodial, cross-chain USDC treasury with deterministic on-chain execution and a clear end-to-end user experience. |
 
-- **Circle Programmable Wallets (SCA)** — Gasless transactions
-- **USDC Bridging** — Ethereum Sepolia → Base Sepolia
-- **Gateway Wallet** — Secure deposit & attestation flow
-- **No Manual Bridging** — Users deposit on any chain, funds arrive automatically
+---
 
-**Cross-Chain Flow:**
-```
-Ethereum Sepolia          Circle Gateway          Base Sepolia
-     │                         │                       │
-     │   1. Deposit USDC       │                       │
-     ├────────────────────────►│                       │
-     │                         │   2. Sign & Attest    │
-     │                         │                       │
-     │                         │   3. Mint USDC        │
-     │                         ├──────────────────────►│
-     │                         │                       │
-     │                         │   4. Wrap to arcUSDC  │
-     │                         │                       ├─► PoolVault
+## 🚀 Key Features
+
+| Feature | Description | On-Chain/Off-Chain |
+|---------|-------------|-------------------|
+| **Non-Custodial Pooling** | Users maintain ownership via ERC-4626 inspired share mechanics; the vault owns the assets. | On-Chain |
+| **Deterministic Agent** | The `StrategyExecutor` acts as an agent, making decisions based on pre-set risk policies (Low/Med/High). | On-Chain |
+| **Chain Abstraction** | Users deposit any token from any chain; Circle Gateway handles the conversion to USDC automatically. | On-Chain |
+| **Gasless UX** | Integrated with Circle Programmable Wallets (SCA) to provide gasless transactions for users. | On-Chain |
+| **Scheduled Exits** | Prevents "bank runs" by using controlled withdrawal windows and batch processing. | On-Chain |
+
+---
+
+## 🛠️ Technology Stack
+
+| Component | Technology | Description |
+|-----------|-----------|-------------|
+| **Frontend** | Next.js 15, TypeScript, TailwindCSS | User dashboard and risk profiling UI. |
+| **Smart Contracts** | Solidity 0.8.28, Hardhat | Core logic for the agent, vault, and risk registry. |
+| **Cross-Chain** | Circle Gateway | Handles seamless bridging and cross-chain deposits. |
+| **Yield Infrastructure** | Arc Protocol | Primary layer for yield generation and arcUSDC. |
+| **Identity Layer** | ENS | Human-readable attribution for pool participation. |
+| **Authentication** | MetaMask | Signature-based authentication (No passwords). |
+
+---
+
+## 🏗️ Smart Contract Architecture
+
+The core functionality is managed by modular Solidity contracts that separate user policy from capital deployment.
+
+| Contract | Purpose | Key Roles |
+|----------|---------|-----------|
+| `PoolVault.sol` | Base treasury contract handling deposits, shares, and pool lifecycle. | Owner, User |
+| `StrategyExecutor.sol` | **THE AGENT** — Executes allocations based on deterministic policy-based logic. | Agent |
+| `RiskPolicyRegistry.sol` | Stores user-defined risk levels (Low, Medium, High) that cap the agent's actions. | User |
+| `ArcUSDC.sol` | Wrapped yield-bearing token used for primary yield accrual within the vault. | Protocol |
+
+### Risk → Allocation Logic
+
+| Risk Level | Agent Behavior | Description |
+|------------|----------------|-------------|
+| **LOW** | 100% Vault-only strategies | Agent execution is explicitly disabled. |
+| **MEDIUM** | Balanced exposure | Agent can allocate a capped percentage to stable yield pools. |
+| **HIGH** | Aggressive optimization | Higher caps for the agent to move funds within Arc strategies. |
+
+---
+
+## 🏗️ Architecture Diagram
+
+```mermaid
+graph TD
+    User((User Wallet)) -->|1. Set Risk Policy| Registry[RiskPolicyRegistry]
+    User -->|2. Deposit Any Token| Circle[Circle Gateway]
+    Circle -->|3. Cross-chain Bridge| Vault[PoolVault ERC-4626]
+    
+    subgraph On-Chain Agentic Layer
+        Vault -->|Manage Funds| Agent[StrategyExecutor - THE AGENT]
+        Agent -->|Checks Bounds| Registry
+        Agent -->|Deploys Capital| Arc[Arc Protocol]
+    end
+
+    Arc -->|Yield Accrual| Vault
+    ENS[ENS Identity] -.->|Resolves Names| User
 ```
 
 ---
 
-## 🏗️ Architecture
+## 🧑‍💻 Getting Started (Development)
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                         USER WALLET                             │
-│                      (MetaMask / WalletConnect)                 │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │
-        ┌───────────────────────┼───────────────────────┐
-        │                       │                       │
-        ▼                       ▼                       ▼
-┌───────────────┐      ┌───────────────┐      ┌───────────────┐
-│ RiskPolicy    │      │ Circle        │      │ PoolVault     │
-│ Registry      │      │ Gateway       │      │ (ERC-4626)    │
-│               │      │               │      │               │
-│ • setRisk()   │      │ • deposit()   │      │ • deposit()   │
-│ • getRisk()   │      │ • bridge()    │      │ • withdraw()  │
-└───────────────┘      └───────────────┘      └───────┬───────┘
-                                                      │
-                                                      ▼
-                                              ┌───────────────┐
-                                              │ Strategy      │
-                                              │ Executor      │
-                                              │               │
-                                              │ THE AGENT     │
-                                              │               │
-                                              │ • execute()   │
-                                              │ • unwind()    │
-                                              └───────┬───────┘
-                                                      │
-                              ┌────────────────────────┼────────────────────────┐
-                              │                        │                        │
-                              ▼                        ▼                        ▼
-                      ┌───────────────┐        ┌───────────────┐        ┌───────────────┐
-                      │ Arc Protocol  │        │ Uniswap v4    │        │ HiFi Hook     │
-                      │ (arcUSDC)     │        │ PoolManager   │        │ (Analytics)   │
-                      │               │        │               │        │               │
-                      │ Primary yield │        │ LP exposure   │        │ Observability │
-                      └───────────────┘        └───────────────┘        └───────────────┘
-```
+The project is structured into multiple directories: `contracts/`, `hifi/`, and `gateway/`.
 
----
+### 1. Smart Contracts Setup (`contracts/`)
 
-## 🔐 Security Model
+1. **Install Dependencies**:
+   ```bash
+   cd contracts
+   npm install
+   ```
 
-| Principle | Implementation |
-|-----------|----------------|
-| **Non-Custodial** | Vault always owns funds; user owns shares |
-| **No Relayer** | All execution is user or cap-triggered |
-| **No Backend Signer** | Contracts don't depend on offchain signatures |
-| **No AI/ML** | Purely deterministic policy-based logic |
-| **Policy Enforcement** | Risk limits enforced at contract level |
-| **Scheduled Exits** | Prevents bank runs with controlled windows |
+2. **Configure**: Set up your `.env` file with your RPC URLs and private keys for Base Sepolia and Ethereum Sepolia.
 
----
+3. **Compile Contracts**:
+   ```bash
+   npx hardhat compile
+   ```
 
-## 📁 Project Structure
+4. **Deploy Contracts**:
+   ```bash
+   npx hardhat run scripts/deploy-v2-pools.js --network baseSepolia
+   ```
 
-```
-├── contracts/
-│   ├── PoolVault.sol           # Base vault (Arc integration)
-│   ├── PoolVaultMediumRisk.sol # Simulated PnL vault
-│   ├── PoolVaultV3.sol         # Agent-integrated vault
-│   ├── RiskPolicyRegistry.sol  # Risk level storage
-│   ├── StrategyExecutor.sol    # THE AGENT
-│   ├── V4LiquidityAdapter.sol  # Uniswap v4 interface
-│   ├── HiFiHook.sol            # Optional v4 hook
-│   ├── ArcUSDC.sol             # Wrapped yield token
-│   └── scripts/
-│       └── deploy-v4-agentic.js
-├── hifi/                        # Next.js frontend
-│   ├── app/
-│   │   ├── user/dashboard/     # Portfolio view
-│   │   ├── user/pools/         # Investment pools
-│   │   └── api/                # Backend APIs
-│   └── components/
-└── gateway/                     # Circle Gateway scripts
-```
+### 2. Frontend Setup (`hifi/`)
+
+1. **Install Dependencies**:
+   ```bash
+   cd hifi
+   npm install
+   ```
+
+2. **Configure**: Create a `.env.local` file with the following:
+   ```env
+   NEXT_PUBLIC_WALLET_CONNECT_PROJECT_ID=your_project_id
+   MONGODB_URI=your_mongodb_uri
+   CIRCLE_API_KEY=your_circle_api_key
+   ```
+
+3. **Run Development Server**:
+   ```bash
+   npm run dev
+   ```
+
+4. **Open**: Navigate to [http://localhost:3000](http://localhost:3000)
+
+### 3. Gateway Setup (`gateway/unified-balance-quickstart/`)
+
+1. **Install Dependencies**:
+   ```bash
+   cd gateway/unified-balance-quickstart
+   npm install
+   ```
+
+2. **Configure**: Set up your Circle API credentials in the environment.
+
+3. **Run Setup**:
+   ```bash
+   node setup.js
+   ```
 
 ---
 
-## 🚀 Quick Start
+## 📝 Learn More
+
+To learn more about the technologies used in HI.FI:
+
+- [Arc Protocol Documentation](https://docs.circle.com/arc) - Learn about Arc's yield infrastructure
+- [Circle Gateway Documentation](https://docs.circle.com) - Cross-chain USDC bridging
+- [ENS Documentation](https://docs.ens.domains/) - ENS integration guide
+- [Next.js Documentation](https://nextjs.org/docs) - Next.js features and API
+- [Hardhat Documentation](https://hardhat.org/docs) - Smart contract development
+
+---
+
+## 🚀 Deploy on Vercel
+
+The easiest way to deploy the HI.FI frontend is to use the [Vercel Platform](https://vercel.com/new):
 
 ```bash
-# Clone
-git clone https://github.com/Craig-Rosario/HI.FI.git
-cd HI.FI
-
-# Install & compile contracts
-cd contracts
-npm install
-npx hardhat compile
-
-# Run frontend
-cd ../hifi
-npm install
-npm run dev
-
-# Open http://localhost:3000
+cd hifi
+vercel deploy
 ```
 
-### Deploy Agentic Layer
-
-```bash
-cd contracts
-
-# Set environment variables
-export PRIVATE_KEY=<your-key>
-export V4_POOL_MANAGER=<uniswap-v4-address>
-
-# Deploy to Base Sepolia
-npx hardhat run scripts/deploy-v4-agentic.js --network base-sepolia
-```
+Make sure to configure your environment variables in the Vercel dashboard before deploying.
 
 ---
 
-## 🛠️ Tech Stack
+## 📄 License
 
-| Layer | Technology |
-|-------|------------|
-| Smart Contracts | Solidity 0.8.28, Hardhat, OpenZeppelin |
-| Frontend | Next.js 15, TypeScript, TailwindCSS |
-| Cross-Chain | Circle Gateway, Circle Programmable Wallets |
-| Yield | Arc Protocol (arcUSDC) |
-| DEX | Uniswap v4 (Base Sepolia) |
-| Database | MongoDB (user profiles) |
-| Network | Base Sepolia, Ethereum Sepolia |
+This project is open-source and available under the MIT License.
 
 ---
 
-## 👥 Team
-
-Built with ❤️ for ETHGlobal
-
----
+**Built with ❤️ by Team Big(O)**
