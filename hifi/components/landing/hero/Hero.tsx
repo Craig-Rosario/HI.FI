@@ -59,7 +59,7 @@ export default function Hero() {
 
                             <LayoutTextFlip
                                 text=""
-                                words={["More", "Better", "Safer", "Smarter"]}
+                                words={["Smarter", "Easier", "Automatically", "Seamlessly"]}
                             />
                         </div>
 
@@ -68,8 +68,7 @@ export default function Hero() {
 
                     {mounted && (
                         <EncryptedText
-                            text="Join a community of investors pooling capital for better opportunities.
-                        Lower entry barriers, higher returns."
+                            text="Pool USDC across chains with one approval, we handle bridges, gas, and complexity."
                             encryptedClassName="text-neutral-500"
                             revealedClassName="text-gray-400 text-lg max-w-xl mb-12"
                             revealDelayMs={10}
