@@ -14,6 +14,7 @@ import { useAccount, useEnsName } from 'wagmi'
 import { sepolia } from 'wagmi/chains'
 
 import ArcImg from "@/public/images/arc.png"
+import EnsImg from "@/public/images/ens.png"
 
 const navigation = [
   { name: 'Dashboard', href: '/user/dashboard', icon: LayoutDashboard },
@@ -99,6 +100,20 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               </nav>
 
               <div className={`border-t border-sidebar-border space-y-2 ${collapsed ? 'p-2' : 'p-4'}`}>
+                {/* Powered by ENS - only show if user has ENS name */}
+                {ensName && (
+                  !collapsed ? (
+                    <div className="flex items-center gap-2 px-3 py-2 mb-2">
+                      <img src={EnsImg.src} alt="ENS" className="w-6 h-6" />
+                      <span className="text-sm text-white font-bold ml-1">Powered by ENS</span>
+                    </div>
+                  ) : (
+                    <div className="flex justify-center py-2 mb-2" title="Powered by ENS">
+                      <img src={EnsImg.src} alt="ENS" className="w-5 h-5" />
+                    </div>
+                  )
+                )}
+                
                 {!collapsed ? (
                   <>
                     <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-sidebar-border bg-sidebar-accent/5">
