@@ -5,25 +5,25 @@ const howItWorks = [
     number: "01",
     title: "Connect Your Wallet",
     description:
-      "Link your MetaMask or any Web3 wallet to start. Your funds stay in your control at all times — we never custody user assets."
+      "Connect your wallet to get started. Your funds remain in your control and fully onchain at all times."
   },
   {
     number: "02",
-    title: "Join or Create a Pool",
+    title: "Join a Pool",
     description:
-      "Pick an existing investment pool or create one with friends, a DAO, or a community. Everyone deposits into the same smart contract."
+      "Join an existing pool with others. Deposits are pooled in USDC and managed by transparent smart contracts."
   },
   {
     number: "03",
     title: "Capital Gets Deployed",
     description:
-      "The pooled capital is deployed into DeFi strategies like lending, yield farming, or vaults, unlocking higher returns than solo investing."
+      "Pooled USDC is routed across chains and deployed according to the pool's strategy, with execution handled automatically."
   },
   {
     number: "04",
     title: "Earn & Withdraw Anytime",
     description:
-      "Your share grows as the pool earns yield. Withdraw anytime based on your ownership — trustless, transparent, on-chain."
+      "Track your position and withdraw based on pool rules and ownership. Every action is transparent and verifiable onchain."
   }
 ]
 
@@ -37,7 +37,7 @@ export default function Working() {
             How It Works
           </h2>
           <p className="text-sm uppercase tracking-[0.3em] text-gray-400">
-            Get started in four simple steps
+            FOUR STEPS. ONE APPROVAL.
           </p>
         </div>
 
