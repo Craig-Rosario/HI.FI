@@ -15,6 +15,12 @@
 
 ---
 
+## 🏗️ System Architecture / User Flow  Diagram
+
+![HI.FI Architecture](./assets/architecture.png)
+
+---
+
 ## 🧩 Partner Integrations
 
 HI.FI integrates with **Arc (Circle)** and **ENS** to create a transparent, agentic treasury ecosystem.
@@ -83,11 +89,6 @@ The core functionality is managed by modular Solidity contracts that separate us
 | **MEDIUM** | Balanced exposure | Agent can allocate a capped percentage to stable yield pools. |
 | **HIGH** | Aggressive optimization | Higher caps for the agent to move funds within Arc strategies. |
 
----
-
-## 🏗️ System Architecture / User Flow  Diagram
-
-![HI.FI Architecture](./assets/architecture.png)
 
 ---
 
