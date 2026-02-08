@@ -104,7 +104,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {ensName && (
                   !collapsed ? (
                     <div className="flex items-center gap-2 px-3 py-2 mb-2">
-                      <img src={EnsImg.src} alt="ENS" className="w-5 h-5" />
+                      <img src={EnsImg.src} alt="ENS" className="w-6 h-6" />
                       <span className="text-sm text-white font-bold ml-1">Powered by ENS</span>
                     </div>
                   ) : (
